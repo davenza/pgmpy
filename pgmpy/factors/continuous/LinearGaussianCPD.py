@@ -72,13 +72,16 @@ class LinearGaussianCPD(BaseFactor):
 
         """
         self.variable = variable
+        # FIXME: This is never used and unnecessary
         self.mean = evidence_mean
+        # FIXME: This is never used and unnecessary
         self.variance = evidence_variance
         self.evidence = evidence
         self.sigma_yx = None
 
         if beta is not None:
             self.beta = beta
+            # FIXME: This is never defined in the fit() method. Necessary for __str__
             self.beta_0 = beta[0]
             self.beta_vector = np.asarray(beta[1:])
 
@@ -96,6 +99,7 @@ class LinearGaussianCPD(BaseFactor):
         prod_xixj = xi * xj
         return np.sum(prod_xixj)
 
+    # FIXME: Use Theorem 7.4 of Koller. Simpler and faster with numpy.
     def maximum_likelihood_estimator(self, data, states):
         """ 
         Fit using MLE method.
@@ -125,6 +129,7 @@ class LinearGaussianCPD(BaseFactor):
 
         # First we compute just the coefficients of beta_1 to beta_N.
         # Later we compute beta_0 and append it.
+        # FIXME: This repeats some computations. Maybe we could use np.cov?
         for i in range(0, x_len):
             x.append(self.sum_of_product(x_df["(Y|X)"], x_df[self.evidence[i]]))
             for j in range(0, x_len):
@@ -159,7 +164,7 @@ class LinearGaussianCPD(BaseFactor):
                         * np.mean(x_df[self.evidence[j]])
                     )
                 )
-
+        # FIXME: You could use np.var()
         sigma_est = np.sqrt(
             self.sum_of_product(x_df["(Y|X)"], x_df["(Y|X)"]) / x_len_df
             - np.mean(x_df["(Y|X)"]) * np.mean(x_df["(Y|X)"])
@@ -168,6 +173,7 @@ class LinearGaussianCPD(BaseFactor):
         self.sigma_yx = sigma_est
         return self.beta, self.sigma_yx
 
+    # FIXME: Default estimator is None.
     def fit(self, data, states, estimator=None, complete_samples_only=True, **kwargs):
         """
         Determine βs from data
@@ -197,10 +203,12 @@ class LinearGaussianCPD(BaseFactor):
             # The first element of args is the value of the variable on which CPD is defined
             # and the rest of the elements give the mean values of the parent
             # variables.
+            # FIXME: Can't you use numpy?
             mean = (
                 sum([arg * coeff for (arg, coeff) in zip(args[1:], self.beta_vector)])
                 + self.beta_0
             )
+            # FIXME: Univariate normal. Also, use self.sigma_xy as the variance. Here you are returning the pdf of the evidence X, not Y.
             return multivariate_normal.pdf(
                 args[0], np.array(mean), np.array([[self.variance]])
             )
