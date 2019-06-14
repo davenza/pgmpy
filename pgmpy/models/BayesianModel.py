@@ -705,6 +705,7 @@ class BayesianModel(DAG):
         factors = [cpd.to_factor() for cpd in self.get_cpds()]
         factor_prod = reduce(mul, factors)
         JPD_fact = DiscreteFactor(JPD.variables, JPD.cardinality, JPD.values)
+        # FIXME: I think this checks that the distributions are the same. Checking I-map is not the same as distribution equality. We should be checking independencies.
         if JPD_fact == factor_prod:
             return True
         else:
