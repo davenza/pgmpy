@@ -258,6 +258,7 @@ class MarkovModel(UndirectedGraph):
                             var=variable
                         )
                     )
+                # FIXME: This should not be checked on each iteration.
                 if len(self.nodes()) != len(cardinalities):
                     raise ValueError("Factors for all the variables not defined")
             for var1, var2 in itertools.combinations(factor.variables, 2):
@@ -359,6 +360,7 @@ class MarkovModel(UndirectedGraph):
             if inplace:
                 return
             else:
+                # FIXME: Make a copy.
                 return self
 
         graph_copy = nx.Graph(self.edges())
@@ -412,6 +414,7 @@ class MarkovModel(UndirectedGraph):
 
             cardinalities = self.get_cardinality()
             for index in range(self.number_of_nodes()):
+                # FIXME Performance. It is not necessary to obtain all the parameters given a heuristic.
                 # S represents the size of clique created by deleting the
                 # node from the graph
                 S = {}
