@@ -167,9 +167,11 @@ class VariableElimination(Inference):
             factors = [
                 factor
                 for factor in working_factors[var]
+                # TODO: Instead of checking this, we could remove factor of the removed variables.
                 if not set(factor.variables).intersection(eliminated_variables)
             ]
             phi = factor_product(*factors)
+            # FIXME: Why so much inplace=False?
             phi = getattr(phi, operation)([var], inplace=False)
             del working_factors[var]
             for variable in phi.variables:
@@ -192,6 +194,7 @@ class VariableElimination(Inference):
         else:
             query_var_factor = {}
             for query_var in variables:
+                # FIXME: Computes a joint and then marginalizes. This is a waste of time. Furthermore, too much inplace=False
                 phi = factor_product(*final_distribution)
                 query_var_factor[query_var] = phi.marginalize(
                     list(set(variables) - set([query_var])), inplace=False
@@ -380,8 +383,10 @@ class VariableElimination(Inference):
             factors = [
                 factor
                 for factor in working_factors[var]
+                # FIXME: Same comments as in _variable_elimination(). It should be a better way to do this.
                 if not set(factor).intersection(eliminated_variables)
             ]
+            # TODO: Re-check this code. Should not difference() be inside set()?
             phi = set(itertools.chain(*factors)).difference({var})
             cliques.add(tuple(phi))
             del working_factors[var]
@@ -576,9 +581,10 @@ class BeliefPropagation(Inference):
         }
 
         for clique in self.junction_tree.nodes():
+            # FIXME: Is it necessary to check convergence on each iteration? At least return a list of unconverged edges.
             if not self._is_converged(operation=operation):
                 neighbors = self.junction_tree.neighbors(clique)
-                # update root's belief using nieighbor clique's beliefs
+                # update root's belief using neighbor clique's beliefs
                 # upward pass
                 for neighbor_clique in neighbors:
                     self._update_beliefs(neighbor_clique, clique, operation=operation)
@@ -694,6 +700,7 @@ class BeliefPropagation(Inference):
         is_calibrated = self._is_converged(operation=operation)
         # Calibrate the junction tree if not calibrated
         if not is_calibrated:
+            # FIXME: Calibrates with marginalize. What if I am maximizing?
             self.calibrate()
 
         if not isinstance(variables, (list, tuple, set)):

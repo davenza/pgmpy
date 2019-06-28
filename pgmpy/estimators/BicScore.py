@@ -51,6 +51,7 @@ class BicScore(StructureScore):
         num_parents_states = float(len(state_counts.columns))
 
         score = 0
+        # FIXME: Can we compute this with numpy/scipy?
         for (
             parents_state
         ) in state_counts:  # iterate over df columns (only 1 if no parents)

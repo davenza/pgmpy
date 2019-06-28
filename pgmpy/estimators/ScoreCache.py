@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from pgmpy.estimators import StructureScore
 
-
+# FIXME: These classes are never used.
 class ScoreCache(StructureScore):
     def __init__(self, base_scorer, data, max_size=10000, **kwargs):
         """

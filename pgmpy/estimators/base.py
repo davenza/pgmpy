@@ -63,6 +63,7 @@ class BaseEstimator(object):
         states = sorted(list(self.data.ix[:, variable].dropna().unique()))
         return states
 
+    # FIXME: Is this problematic with memory? https://stackoverflow.com/questions/33672412/python-functools-lru-cache-with-class-methods-release-object
     @convert_args_tuple
     @lru_cache(maxsize=2048)
     def state_counts(self, variable, parents=[], complete_samples_only=None):
@@ -115,6 +116,7 @@ class BaseEstimator(object):
         c1  2.0  0.0
         c2  0.0  1.0
         """
+        # FIXME: Why the decorator converts to tuple if you then convert again to lists?
         parents = list(parents)
 
         # default for how to deal with missing data can be set in class constructor
@@ -240,6 +242,7 @@ class BaseEstimator(object):
                 )
             )
 
+        # FIXME: Does crosstab could not be used in state_counts()?
         # compute actual frequency/state_count table:
         # = P(X,Y,Zs)
         XYZ_state_counts = pd.crosstab(
@@ -293,6 +296,7 @@ class BaseEstimator(object):
         expected = XYZ_expected.fillna(0).values.flatten()
         # remove elements where the expected value is 0;
         # this also corrects the degrees of freedom for chisquare
+        # FIXME: You could use numpy.
         observed, expected = zip(
             *((o, e) for o, e in zip(observed, expected) if not e == 0)
         )

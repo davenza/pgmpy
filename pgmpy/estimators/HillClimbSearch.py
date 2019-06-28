@@ -173,6 +173,7 @@ class HillClimbSearch(StructureEstimator):
             best_score_delta = 0
             best_operation = None
 
+            # FIXME: This implementation does not cache the delta scores for the changes!!!!!!!!
             for operation, score_delta in self._legal_operations(
                 current_model, tabu_list, max_indegree
             ):

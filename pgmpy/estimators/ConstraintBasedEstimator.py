@@ -428,6 +428,7 @@ class ConstraintBasedEstimator(StructureEstimator):
         while progress:  # as long as edges can be oriented (removed)
             num_edges = pdag.number_of_edges()
 
+            # FIXME: Here, node_pairs is already consumed. It should be recreated before each for loop.
             # 2) for each X->Z-Y, orient edges to Z->Y
             for X, Y in node_pairs:
                 for Z in (set(pdag.successors(X)) - set(pdag.predecessors(X))) & (
@@ -437,6 +438,7 @@ class ConstraintBasedEstimator(StructureEstimator):
 
             # 3) for each X-Y with a directed path from X to Y, orient edges to X->Y
             for X, Y in node_pairs:
+                # FIXME: Networkx not imported.
                 for path in nx.all_simple_paths(pdag, X, Y):
                     is_directed = True
                     for src, dst in path:

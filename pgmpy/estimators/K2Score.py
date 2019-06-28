@@ -47,16 +47,20 @@ class K2Score(StructureScore):
         state_counts = self.state_counts(variable, parents)
 
         score = 0
+        # FIXME: Can this loop be replaced by a scipy.special.loggamma() call?
         for (
             parents_state
         ) in state_counts:  # iterate over df columns (only 1 if no parents)
+            # FIXME: Use pandas.sum() ?
             conditional_sample_size = sum(state_counts[parents_state])
 
+            # FIXME: lgamma(var_cardinality) can be extracted from the loop because is independent on the parent_state
             score += lgamma(var_cardinality) - lgamma(
                 conditional_sample_size + var_cardinality
             )
 
             for state in var_states:
+                # FIXME: This if is unnecessary because state_counts[parents_state][state] can't be less than 0.
                 if state_counts[parents_state][state] > 0:
                     score += lgamma(state_counts[parents_state][state] + 1)
         return score

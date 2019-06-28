@@ -134,6 +134,7 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         node_cardinality = len(self.state_names[node])
 
         # Get the state names for the CPD
+        # FIXME: state_names is computed in the constructor.
         state_names = {node: list(state_counts.index)}
         if parents:
             state_names.update(
