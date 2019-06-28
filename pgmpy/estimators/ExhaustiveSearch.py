@@ -102,6 +102,7 @@ class ExhaustiveSearch(StructureEstimator):
             if nx.is_directed_acyclic_graph(graph):
                 yield graph
 
+    # FIXME: Not used.
     def all_scores(self):
         """
         Computes a list of DAGs and their structure scores, ordered by score.

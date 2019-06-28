@@ -123,6 +123,7 @@ class BayesianEstimator(ParameterEstimator):
         >>> data = pd.DataFrame(data={'A': [0, 0, 1], 'B': [0, 1, 0], 'C': [1, 1, 0]})
         >>> model = BayesianModel([('A', 'C'), ('B', 'C')])
         >>> estimator = BayesianEstimator(model, data)
+        # FIXME: This example does not compile because pseudo_counts have the wrong shape.
         >>> cpd_C = estimator.estimate_cpd('C', prior_type="dirichlet", pseudo_counts=[1, 2])
         >>> print(cpd_C)
         ╒══════╤══════╤══════╤══════╤════════════════════╕
@@ -147,6 +148,7 @@ class BayesianEstimator(ParameterEstimator):
             alpha = float(equivalent_sample_size) / (
                 node_cardinality * np.prod(parents_cardinalities)
             )
+            # FIXME: Use np.full.
             pseudo_counts = np.ones(cpd_shape, dtype=float) * alpha
         elif prior_type == "dirichlet":
             pseudo_counts = np.array(pseudo_counts)
