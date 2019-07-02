@@ -4,7 +4,7 @@ import numpy as np
 
 from pgmpy.estimators import ParameterEstimator
 from pgmpy.factors.discrete import TabularCPD
-from pgmpy.models import BayesianModel
+from pgmpy.models import BayesianModel, LinearGaussianBayesianNetwork
 
 
 class MaximumLikelihoodEstimator(ParameterEstimator):
@@ -43,9 +43,9 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         >>> estimator = MaximumLikelihoodEstimator(model, data)
         """
 
-        if not isinstance(model, BayesianModel):
+        if not isinstance(model, (BayesianModel, LinearGaussianBayesianNetwork)):
             raise NotImplementedError(
-                "Maximum Likelihood Estimate is only implemented for BayesianModel"
+                "Maximum Likelihood Estimate is only implemented for BayesianModel and LinearGaussianBayesianNetwork"
             )
 
         super(MaximumLikelihoodEstimator, self).__init__(model, data, **kwargs)
@@ -122,7 +122,12 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         │ C(1) │ 1.0  │ 1.0  │ 0.0  │ 0.5  │
         ╘══════╧══════╧══════╧══════╧══════╛
         """
+        if isinstance(self.model, LinearGaussianBayesianNetwork):
+            return self.gaussian_estimate(node)
+        elif isinstance(self.model, BayesianModel):
+            return self.discrete_estimate(node)
 
+    def discrete_estimate(self, node):
         state_counts = self.state_counts(node)
 
         # if a column contains only `0`s (no states observed for some configuration
@@ -154,3 +159,18 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         )
         cpd.normalize()
         return cpd
+
+    def gaussian_estimate(self, node):
+        """
+        Runs a linear regression with least squares method.
+        :param node:
+        :return:
+        """
+        parents = sorted(self.model.get_parents(node))
+        lindata = np.column_stack((np.ones(self.data.shape[0]), self.data[parents].values))
+        (betas, res, _, _) = np.linalg.lstsq(lindata, self.data[node])
+
+        if self.data.shape[0] <= 1:
+            sigma = 0
+        else:
+            sigma = res / (self.data.shape[0] - 1)

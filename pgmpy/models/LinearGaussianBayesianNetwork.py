@@ -6,6 +6,7 @@ import networkx as nx
 from pgmpy.models import BayesianModel
 from pgmpy.factors.continuous import LinearGaussianCPD
 from pgmpy.factors.distributions import GaussianDistribution
+from pgmpy.estimators import MaximumLikelihoodEstimator, BaseEstimator
 
 
 class LinearGaussianBayesianNetwork(BayesianModel):
@@ -240,15 +241,28 @@ class LinearGaussianBayesianNetwork(BayesianModel):
         raise ValueError("Cardinality is not defined for continuous variables.")
 
     def fit(
-        self, data, estimator=None, state_names=[], complete_samples_only=True, **kwargs
+        self, data, estimator=None, complete_samples_only=True, **kwargs
     ):
         """
         For now, fit method has not been implemented for LinearGaussianBayesianNetwork.
         """
 
-        raise NotImplementedError(
-            "fit method has not been implemented for LinearGaussianBayesianNetwork."
+        if estimator is None:
+            estimator = MaximumLikelihoodEstimator
+        else:
+            if not issubclass(estimator, BaseEstimator):
+                raise TypeError("Estimator object should be a valid pgmpy estimator.")
+
+        if all(data.dtypes == 'float64'):
+            raise ValueError("All columns should be continuous (float64 dtype).")
+
+        _estimator = estimator(
+            self,
+            data,
+            complete_samples_only=complete_samples_only,
         )
+        cpds_list = _estimator.get_parameters(**kwargs)
+        self.add_cpds(*cpds_list)
 
     def predict(self, data):
         """

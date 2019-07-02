@@ -4,7 +4,7 @@ from __future__ import division
 
 import numpy as np
 import pandas as pd
-from scipy.stats import multivariate_normal
+from scipy.stats import norm
 
 from pgmpy.factors.base import BaseFactor
 
@@ -34,9 +34,7 @@ class LinearGaussianCPD(BaseFactor):
     Reference: https://cedar.buffalo.edu/~srihari/CSE574/Chap8/Ch8-PGM-GaussianBNs/8.5%20GaussianBNs.pdf
     """
 
-    def __init__(
-        self, variable, evidence_mean, evidence_variance, evidence=[], beta=None
-    ):
+    def __init__(self, variable, beta, sigma, evidence=[]):
         """
         Parameters
         ----------
@@ -72,130 +70,14 @@ class LinearGaussianCPD(BaseFactor):
 
         """
         self.variable = variable
-        # FIXME: This is never used and unnecessary
-        self.mean = evidence_mean
-        # FIXME: This is never used and unnecessary
-        self.variance = evidence_variance
         self.evidence = evidence
-        self.sigma_yx = None
 
-        if beta is not None:
-            self.beta = beta
-            # FIXME: This is never defined in the fit() method. Necessary for __str__
-            self.beta_0 = beta[0]
-            self.beta_vector = np.asarray(beta[1:])
+        self.beta = np.asarray(beta)
+        self.sigma = sigma
 
-            if len(evidence) != len(beta) - 1:
-                raise ValueError(
-                    "The number of variables in evidence must be one less than the length of the beta vector."
-                )
-
-        variables = [variable] + evidence
         super(LinearGaussianCPD, self).__init__(
-            variables, pdf="gaussian", mean=self.mean, covariance=self.variance
+            [variable] + evidence, mean=self.mean, covariance=self.variance
         )
-
-    def sum_of_product(self, xi, xj):
-        prod_xixj = xi * xj
-        return np.sum(prod_xixj)
-
-    # FIXME: Use Theorem 7.4 of Koller. Simpler and faster with numpy.
-    def maximum_likelihood_estimator(self, data, states):
-        """ 
-        Fit using MLE method.
-
-        Parameters
-        ----------
-        data: pandas.DataFrame or 2D array
-            Dataframe of values containing samples from the conditional distribution, (Y|X)
-            and corresponding X values.
-
-        states: All the input states that are jointly gaussian.
-
-        Returns
-        -------
-        beta, variance (tuple): Returns estimated betas and the variance.
-        """
-        x_df = pd.DataFrame(data, columns=states)
-        x_len = len(self.evidence)
-
-        sym_coefs = []
-        for i in range(0, x_len):
-            sym_coefs.append("b" + str(i + 1) + "_coef")
-
-        sum_x = x_df.sum()
-        x = [sum_x["(Y|X)"]]
-        coef_matrix = pd.DataFrame(columns=sym_coefs)
-
-        # First we compute just the coefficients of beta_1 to beta_N.
-        # Later we compute beta_0 and append it.
-        # FIXME: This repeats some computations. Maybe we could use np.cov?
-        for i in range(0, x_len):
-            x.append(self.sum_of_product(x_df["(Y|X)"], x_df[self.evidence[i]]))
-            for j in range(0, x_len):
-                coef_matrix.loc[i, sym_coefs[j]] = self.sum_of_product(
-                    x_df[self.evidence[i]], x_df[self.evidence[j]]
-                )
-
-        coef_matrix.insert(0, "b0_coef", sum_x[self.evidence].values)
-        row_1 = np.append([len(x_df)], sum_x[self.evidence].values)
-        coef_matrix.loc[-1] = row_1
-        coef_matrix.index = coef_matrix.index + 1  # shifting index
-        coef_matrix.sort_index(inplace=True)
-
-        beta_coef_matrix = np.matrix(coef_matrix.values, dtype="float")
-        coef_inv = np.linalg.inv(beta_coef_matrix)
-        beta_est = np.array(np.matmul(coef_inv, np.transpose(x)))
-        self.beta = beta_est[0]
-
-        sigma_est = 0
-        x_len_df = len(x_df)
-        for i in range(0, x_len):
-            for j in range(0, x_len):
-                sigma_est += (
-                    self.beta[i + 1]
-                    * self.beta[j + 1]
-                    * (
-                        self.sum_of_product(
-                            x_df[self.evidence[i]], x_df[self.evidence[j]]
-                        )
-                        / x_len_df
-                        - np.mean(x_df[self.evidence[i]])
-                        * np.mean(x_df[self.evidence[j]])
-                    )
-                )
-        # FIXME: You could use np.var()
-        sigma_est = np.sqrt(
-            self.sum_of_product(x_df["(Y|X)"], x_df["(Y|X)"]) / x_len_df
-            - np.mean(x_df["(Y|X)"]) * np.mean(x_df["(Y|X)"])
-            - sigma_est
-        )
-        self.sigma_yx = sigma_est
-        return self.beta, self.sigma_yx
-
-    # FIXME: Default estimator is None.
-    def fit(self, data, states, estimator=None, complete_samples_only=True, **kwargs):
-        """
-        Determine βs from data
-
-        Parameters
-        ----------
-        data: pandas.DataFrame
-            Dataframe containing samples from the conditional distribution, p(Y|X)
-            estimator: 'MLE' or 'MAP'
-
-        completely_samples_only: boolean (True or False)
-            Are they downsampled or complete? Defaults to True
-
-        """
-        if estimator == "MLE":
-            mean, variance = self.maximum_likelihood_estimator(data, states)
-        elif estimator == "MAP":
-            raise NotImplementedError(
-                "fit method has not been implemented using Maximum A-Priori (MAP)"
-            )
-
-        return mean, variance
 
     @property
     def pdf(self):
@@ -203,15 +85,9 @@ class LinearGaussianCPD(BaseFactor):
             # The first element of args is the value of the variable on which CPD is defined
             # and the rest of the elements give the mean values of the parent
             # variables.
-            # FIXME: Can't you use numpy?
-            mean = (
-                sum([arg * coeff for (arg, coeff) in zip(args[1:], self.beta_vector)])
-                + self.beta_0
-            )
-            # FIXME: Univariate normal. Also, use self.sigma_xy as the variance. Here you are returning the pdf of the evidence X, not Y.
-            return multivariate_normal.pdf(
-                args[0], np.array(mean), np.array([[self.variance]])
-            )
+            mean = self.beta[0] + np.dot(self.beta[1:], np.asarray(args))
+
+            return norm.pdf(args[0], np.array(mean), self.sigma)
 
         return _pdf
 
@@ -233,14 +109,12 @@ class LinearGaussianCPD(BaseFactor):
         >>> copy_cpd.evidence
         ['X1', 'X2', 'X3']
         """
-        copy_cpd = LinearGaussianCPD(
-            self.variable, self.beta, self.variance, list(self.evidence)
-        )
+        copy_cpd = LinearGaussianCPD(self.variable, self.beta, self.sigma, list(self.evidence))
 
         return copy_cpd
 
     def __str__(self):
-        if self.evidence and list(self.beta_vector):
+        if self.evidence and self.beta.size > 1:
             # P(Y| X1, X2, X3) = N(-2*X1_mu + 3*X2_mu + 7*X3_mu; 0.2)
             rep_str = "P({node} | {parents}) = N({mu} + {b_0}; {sigma})".format(
                 node=str(self.variable),
@@ -248,17 +122,17 @@ class LinearGaussianCPD(BaseFactor):
                 mu=" + ".join(
                     [
                         "{coeff}*{parent}".format(coeff=coeff, parent=parent)
-                        for coeff, parent in zip(self.beta_vector, self.evidence)
+                        for coeff, parent in zip(self.beta[1:], self.evidence)
                     ]
                 ),
-                b_0=str(self.beta_0),
-                sigma=str(self.variance),
+                b_0=str(self.beta[0]),
+                sigma=str(self.sigma),
             )
         else:
             # P(X) = N(1, 4)
             rep_str = "P({X}) = N({beta_0}; {variance})".format(
                 X=str(self.variable),
-                beta_0=str(self.beta_0),
-                variance=str(self.variance),
+                beta_0=str(self.beta[0]),
+                variance=str(self.sigma),
             )
         return rep_str
