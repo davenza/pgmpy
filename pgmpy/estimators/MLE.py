@@ -4,6 +4,7 @@ import numpy as np
 
 from pgmpy.estimators import ParameterEstimator
 from pgmpy.factors.discrete import TabularCPD
+from pgmpy.factors.continuous import LinearGaussianCPD
 from pgmpy.models import BayesianModel, LinearGaussianBayesianNetwork
 
 
@@ -167,10 +168,20 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         :return:
         """
         parents = sorted(self.model.get_parents(node))
-        lindata = np.column_stack((np.ones(self.data.shape[0]), self.data[parents].values))
-        (betas, res, _, _) = np.linalg.lstsq(lindata, self.data[node])
 
-        if self.data.shape[0] <= 1:
+        node_data = self.data[[node] + parents].dropna()
+        linregress_data = np.column_stack((np.ones(node_data.shape[0]), node_data[parents]))
+        (beta, res, _, _) = np.linalg.lstsq(linregress_data, node_data[node], rcond=None)
+
+        if node_data.shape[0] <= 1:
             sigma = 0
         else:
-            sigma = res / (self.data.shape[0] - 1)
+            sigma = res[0] / (node_data.shape[0] - 1)
+
+        cpd = LinearGaussianCPD(
+            node,
+            beta,
+            sigma,
+            evidence=parents
+        )
+        return cpd

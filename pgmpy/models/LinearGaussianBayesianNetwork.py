@@ -1,13 +1,13 @@
 from __future__ import division
 
+from collections import defaultdict
 import numpy as np
+import pandas as pd
 import networkx as nx
 
 from pgmpy.models import BayesianModel
 from pgmpy.factors.continuous import LinearGaussianCPD
 from pgmpy.factors.distributions import GaussianDistribution
-from pgmpy.estimators import MaximumLikelihoodEstimator, BaseEstimator
-
 
 class LinearGaussianBayesianNetwork(BayesianModel):
     """
@@ -166,7 +166,7 @@ class LinearGaussianBayesianNetwork(BayesianModel):
                [-2., -5.,  8.]])
 
         """
-        variables = nx.topological_sort(self)
+        variables = list(nx.topological_sort(self))
         mean = np.zeros(len(variables))
         covariance = np.zeros((len(variables), len(variables)))
 
@@ -176,10 +176,10 @@ class LinearGaussianBayesianNetwork(BayesianModel):
                 sum(
                     [
                         coeff * mean[variables.index(parent)]
-                        for coeff, parent in zip(cpd.beta_vector, cpd.evidence)
+                        for coeff, parent in zip(cpd.beta[1:], cpd.evidence)
                     ]
                 )
-                + cpd.beta_0
+                + cpd.beta[0]
             )
             covariance[node_idx, node_idx] = (
                 sum(
@@ -187,14 +187,14 @@ class LinearGaussianBayesianNetwork(BayesianModel):
                         coeff
                         * coeff
                         * covariance[variables.index(parent), variables.index(parent)]
-                        for coeff, parent in zip(cpd.beta_vector, cpd.evidence)
+                        for coeff, parent in zip(cpd.beta[1:], cpd.evidence)
                     ]
                 )
                 + cpd.variance
             )
 
-        for node_i_idx in range(len(variables)):
-            for node_j_idx in range(len(variables)):
+        for node_i_idx in range(0,len(variables)):
+            for node_j_idx in range(0, len(variables)):
                 if covariance[node_j_idx, node_i_idx] != 0:
                     covariance[node_i_idx, node_j_idx] = covariance[
                         node_j_idx, node_i_idx
@@ -204,7 +204,7 @@ class LinearGaussianBayesianNetwork(BayesianModel):
                     covariance[node_i_idx, node_j_idx] = sum(
                         [
                             coeff * covariance[node_i_idx, variables.index(parent)]
-                            for coeff, parent in zip(cpd_j.beta_vector, cpd_j.evidence)
+                            for coeff, parent in zip(cpd_j.beta[1:], cpd_j.evidence)
                         ]
                     )
 
@@ -244,8 +244,9 @@ class LinearGaussianBayesianNetwork(BayesianModel):
         self, data, estimator=None, complete_samples_only=True, **kwargs
     ):
         """
-        For now, fit method has not been implemented for LinearGaussianBayesianNetwork.
+        Implemented fit.
         """
+        from pgmpy.estimators import MaximumLikelihoodEstimator, BaseEstimator
 
         if estimator is None:
             estimator = MaximumLikelihoodEstimator
@@ -253,7 +254,7 @@ class LinearGaussianBayesianNetwork(BayesianModel):
             if not issubclass(estimator, BaseEstimator):
                 raise TypeError("Estimator object should be a valid pgmpy estimator.")
 
-        if all(data.dtypes == 'float64'):
+        if any(data.dtypes != 'float64'):
             raise ValueError("All columns should be continuous (float64 dtype).")
 
         _estimator = estimator(
@@ -266,11 +267,28 @@ class LinearGaussianBayesianNetwork(BayesianModel):
 
     def predict(self, data):
         """
-        For now, predict method has not been implemented for LinearGaussianBayesianNetwork.
+        Implemented predict.
         """
-        raise NotImplementedError(
-            "predict method has not been implemented for LinearGaussianBayesianNetwork."
-        )
+
+        if set(data.columns) == set(self.nodes()):
+            raise ValueError("No variable missing in data. Nothing to predict")
+
+        elif set(data.columns) - set(self.nodes()):
+            raise ValueError("Data has variables which are not in the model")
+
+        missing_variables = set(self.nodes()) - set(data.columns)
+
+        joint = self.to_joint_gaussian()
+
+        pred_values = defaultdict(list)
+
+        for _, data_point in data.iterrows():
+            reduced = joint.reduce(data_point.to_dict(), inplace=False)
+
+            for k, v in zip(reduced.variables, reduced.mean[0]):
+                pred_values[k].append(v)
+
+        return pd.DataFrame(pred_values, index=data.index)
 
     def to_markov_model(self):
         """

@@ -34,7 +34,7 @@ class LinearGaussianCPD(BaseFactor):
     Reference: https://cedar.buffalo.edu/~srihari/CSE574/Chap8/Ch8-PGM-GaussianBNs/8.5%20GaussianBNs.pdf
     """
 
-    def __init__(self, variable, beta, sigma, evidence=[]):
+    def __init__(self, variable, beta, variance, evidence=[]):
         """
         Parameters
         ----------
@@ -71,13 +71,12 @@ class LinearGaussianCPD(BaseFactor):
         """
         self.variable = variable
         self.evidence = evidence
+        self.variables = [variable] + evidence
 
         self.beta = np.asarray(beta)
-        self.sigma = sigma
+        self.variance = variance
 
-        super(LinearGaussianCPD, self).__init__(
-            [variable] + evidence, mean=self.mean, covariance=self.variance
-        )
+        super(LinearGaussianCPD, self).__init__()
 
     @property
     def pdf(self):
@@ -87,7 +86,7 @@ class LinearGaussianCPD(BaseFactor):
             # variables.
             mean = self.beta[0] + np.dot(self.beta[1:], np.asarray(args))
 
-            return norm.pdf(args[0], np.array(mean), self.sigma)
+            return norm.pdf(args[0], np.array(mean), self.variance)
 
         return _pdf
 
@@ -109,30 +108,30 @@ class LinearGaussianCPD(BaseFactor):
         >>> copy_cpd.evidence
         ['X1', 'X2', 'X3']
         """
-        copy_cpd = LinearGaussianCPD(self.variable, self.beta, self.sigma, list(self.evidence))
+        copy_cpd = LinearGaussianCPD(self.variable, self.beta, self.variance, list(self.evidence))
 
         return copy_cpd
 
     def __str__(self):
         if self.evidence and self.beta.size > 1:
             # P(Y| X1, X2, X3) = N(-2*X1_mu + 3*X2_mu + 7*X3_mu; 0.2)
-            rep_str = "P({node} | {parents}) = N({mu} + {b_0}; {sigma})".format(
+            rep_str = "P({node} | {parents}) = N({mu} {b_0}; {variance:0.3f})".format(
                 node=str(self.variable),
                 parents=", ".join([str(var) for var in self.evidence]),
                 mu=" + ".join(
                     [
-                        "{coeff}*{parent}".format(coeff=coeff, parent=parent)
+                        "{coeff:0.3f}*{parent}".format(coeff=coeff, parent=parent)
                         for coeff, parent in zip(self.beta[1:], self.evidence)
                     ]
                 ),
-                b_0=str(self.beta[0]),
-                sigma=str(self.sigma),
+                b_0="+ {b_0:0.3f}".format(b_0=self.beta[0]) if self.beta[0] >= 0 else "- {b_0}".format(b_0=abs(self.beta[0])),
+                variance=self.variance,
             )
         else:
             # P(X) = N(1, 4)
-            rep_str = "P({X}) = N({beta_0}; {variance})".format(
+            rep_str = "P({X}) = N({beta_0:0.3f}; {variance})".format(
                 X=str(self.variable),
-                beta_0=str(self.beta[0]),
-                variance=str(self.sigma),
+                beta_0=self.beta[0],
+                variance=self.variance,
             )
         return rep_str

@@ -281,11 +281,14 @@ class GaussianDistribution(BaseDistribution):
                [-4.,  7.]])
 
         """
-        if not isinstance(values, list):
+        if not isinstance(values, (list, dict)):
             raise TypeError(
-                "values: Expected type list or array-like, ",
+                "values: Expected type list, array-like, or dict",
                 "got type {var_type}".format(var_type=type(values)),
             )
+
+        if isinstance(values, dict):
+            values = values.items()
 
         phi = self if inplace else self.copy()
 
