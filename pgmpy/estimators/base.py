@@ -39,6 +39,7 @@ class BaseEstimator(object):
         self.complete_samples_only = complete_samples_only
 
         variables = list(data.columns.values)
+        discrete_variables = data.select_dtypes(exclude=np.float).columns.values
 
         if not isinstance(state_names, dict):
             self.state_names = {
@@ -46,7 +47,7 @@ class BaseEstimator(object):
             }
         else:
             self.state_names = dict()
-            for var in variables:
+            for var in discrete_variables:
                 if var in state_names:
                     if not set(self._collect_state_names(var)) <= set(state_names[var]):
                         raise ValueError(

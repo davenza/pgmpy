@@ -174,14 +174,14 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         (beta, res, _, _) = np.linalg.lstsq(linregress_data, node_data[node], rcond=None)
 
         if node_data.shape[0] <= 1:
-            sigma = 0
+            variance = 0
         else:
-            sigma = res[0] / (node_data.shape[0] - 1)
+            variance = res[0] / (node_data.shape[0] - 1)
 
         cpd = LinearGaussianCPD(
             node,
             beta,
-            sigma,
+            variance,
             evidence=parents
         )
         return cpd
