@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from itertools import permutations
 
 import numpy as np
 import networkx as nx
@@ -7,316 +6,425 @@ import networkx as nx
 from pgmpy.estimators import StructureEstimator, K2Score, GaussianBicScore, BdeuScore, BicScore
 from pgmpy.base import DAG
 
-import scipy
 
-class HillClimbSearch(StructureEstimator):
+class CachedHillClimbing(StructureEstimator):
+
     def __init__(self, data, scoring_method=None, blacklist=[], whitelist=[], **kwargs):
         """
-        Class for heuristic hill climb searches for DAGs, to learn
-        network structure from data. `estimate` attempts to find a model with optimal score.
+        CacheDecomposableHillCliming implements a hill climbing algorithm caching the scores of different operators.
+        This hill climbing procedure assumes the 'scoring_method' is decomposable, so it only updates the relevant
+        operation scores when a change is applied to the graph.
 
-        Parameters
-        ----------
-        data: pandas DataFrame object
-            datafame object where each column represents one variable.
-            (If some values in the data are missing the data cells should be set to `numpy.NaN`.
-            Note that pandas converts each column containing `numpy.NaN`s to dtype `float`.)
+        This method can blacklist arcs to prevent them to be included in the graphs.
 
-        scoring_method: Instance of a `StructureScore`-subclass (`K2Score` is used as default)
-            An instance of `K2Score`, `BdeuScore`, or `BicScore`.
-            This score is optimized during structure estimation by the `estimate`-method.
+        This method can whitelist arcs to ensure those arcs are included in the graph.
 
-        state_names: dict (optional)
-            A dict indicating, for each variable, the discrete set of states (or values)
-            that the variable can take. If unspecified, the observed values in the data set
-            are taken to be the only possible states.
-
-        complete_samples_only: bool (optional, default `True`)
-            Specifies how to deal with missing data, if present. If set to `True` all rows
-            that contain `np.Nan` somewhere are ignored. If `False` then, for each variable,
-            every row where neither the variable nor its parents are `np.NaN` is used.
-            This sets the behavior of the `state_count`-method.
+        :param data: Data to train the Bayesian Network.
+        :param scoring_method: A decomposable score.
+        :param blacklist: List of blacklisted arcs [(source_node, dest_node), (source_node, dest_node), ...]
+        :param whitelist: List of blacklisted arcs [(source_node, dest_node), (source_node, dest_node), ...]
+        :param kwargs:
         """
         continuous = False
         if np.all(data.dtypes == 'float64'):
             continuous = True
 
-        if continuous and scoring_method not in [GaussianBicScore]:
-            raise TypeError("Selected scoring_method {} incorrect for continuous data.".format(scoring_method))
-        if not continuous and scoring_method not in [BdeuScore, BicScore, K2Score]:
-            raise TypeError("Selected scoring_method {} incorrect for discrete data".format(scoring_method))
-
-        if scoring_method is not None:
-            self.scoring_method = scoring_method
-        else:
+        if scoring_method is None:
             if continuous:
-                self.scoring_method = GaussianBicScore
+                self.scoring_method = GaussianBicScore(data, **kwargs)
             else:
                 self.scoring_method = K2Score(data, **kwargs)
+        else:
+            self.scoring_method = scoring_method
 
-        self.blacklist = set(blacklist)
-        self.whitelist = set(whitelist)
-
-        super(HillClimbSearch, self).__init__(data, **kwargs)
-
-
-    def _legal_operations(self, model, tabu_list=[], max_indegree=None):
-        """Generates a list of legal (= not in tabu_list) graph modifications
-        for a given model, together with their score changes. Possible graph modifications:
-        (1) add, (2) remove, or (3) flip a single edge. For details on scoring
-        see Koller & Fridman, Probabilistic Graphical Models, Section 18.4.3.3 (page 818).
-        If a number `max_indegree` is provided, only modifications that keep the number
-        of parents for each node below `max_indegree` are considered."""
-
-        local_score = self.scoring_method.local_score
-        nodes = self.state_names.keys()
-        potential_new_edges = (
-            set(permutations(nodes, 2))
-            - set(model.edges())
-            - set([(Y, X) for (X, Y) in model.edges()])
-        )
-
-        for (X, Y) in potential_new_edges:  # (1) add single edge
-            if nx.is_directed_acyclic_graph(nx.DiGraph(list(model.edges()) + [(X, Y)])):
-                operation = ("+", (X, Y))
-                if operation not in tabu_list:
-                    old_parents = model.get_parents(Y)
-                    new_parents = old_parents + [X]
-                    if max_indegree is None or len(new_parents) <= max_indegree:
-                        score_delta = local_score(Y, new_parents) - local_score(
-                            Y, old_parents
-                        )
-                        yield (operation, score_delta)
-
-        for (X, Y) in model.edges():  # (2) remove single edge
-            operation = ("-", (X, Y))
-            if operation not in tabu_list:
-                old_parents = model.get_parents(Y)
-                new_parents = old_parents[:]
-                new_parents.remove(X)
-                score_delta = local_score(Y, new_parents) - local_score(Y, old_parents)
-                yield (operation, score_delta)
-
-        for (X, Y) in model.edges():  # (3) flip single edge
-            new_edges = list(model.edges()) + [(Y, X)]
-            new_edges.remove((X, Y))
-            if nx.is_directed_acyclic_graph(nx.DiGraph(new_edges)):
-                operation = ("flip", (X, Y))
-                if operation not in tabu_list and ("flip", (Y, X)) not in tabu_list:
-                    old_X_parents = model.get_parents(X)
-                    old_Y_parents = model.get_parents(Y)
-                    new_X_parents = old_X_parents + [Y]
-                    new_Y_parents = old_Y_parents[:]
-                    new_Y_parents.remove(X)
-                    if max_indegree is None or len(new_X_parents) <= max_indegree:
-                        score_delta = (
-                            local_score(X, new_X_parents)
-                            + local_score(Y, new_Y_parents)
-                            - local_score(X, old_X_parents)
-                            - local_score(Y, old_Y_parents)
-                        )
-                        yield (operation, score_delta)
-
-    def estimate(
-        self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, max_iter=1e6
-    ):
-        """
-        Performs local hill climb search to estimates the `DAG` structure
-        that has optimal score, according to the scoring method supplied in the constructor.
-        Starts at model `start` and proceeds by step-by-step network modifications
-        until a local maximum is reached. Only estimates network structure, no parametrization.
-
-        Parameters
-        ----------
-        start: DAG instance
-            The starting point for the local search. By default a completely disconnected network is used.
-
-        tabu_length: int
-            If provided, the last `tabu_length` graph modifications cannot be reversed
-            during the search procedure. This serves to enforce a wider exploration
-            of the search space. Default value: 100.
-
-        max_indegree: int or None
-            If provided and unequal None, the procedure only searches among models
-            where all nodes have at most `max_indegree` parents. Defaults to None.
-
-        epsilon: float (default: 1e-4)
-            Defines the exit condition. If the improvement in score is less than `epsilon`,
-            the learned model is returned.
-
-        max_iter: int (default: 1e6)
-            The maximum number of iterations allowed. Returns the learned model when the
-            number of iterations is greater than `max_iter`.
-
-        Returns
-        -------
-        model: `DAG` instance
-            A `DAG` at a (local) score maximum.
-
-        Examples
-        --------
-        >>> import pandas as pd
-        >>> import numpy as np
-        >>> from pgmpy.estimators import HillClimbSearch, BicScore
-        >>> # create data sample with 9 random variables:
-        ... data = pd.DataFrame(np.random.randint(0, 5, size=(5000, 9)), columns=list('ABCDEFGHI'))
-        >>> # add 10th dependent variable
-        ... data['J'] = data['A'] * data['B']
-        >>> est = HillClimbSearch(data, scoring_method=BicScore(data))
-        >>> best_model = est.estimate()
-        >>> sorted(best_model.nodes())
-        ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
-        >>> best_model.edges()
-        [('B', 'J'), ('A', 'J')]
-        >>> # search a model with restriction on the number of parents:
-        >>> est.estimate(max_indegree=1).edges()
-        [('J', 'A'), ('B', 'J')]
-        """
-        nodes = self.state_names.keys()
-        if start is None:
-            start = DAG()
-            start.add_nodes_from(nodes)
-        elif not isinstance(start, DAG) or not set(start.nodes()) == set(nodes):
-            raise ValueError(
-                "'start' should be a DAG with the same variables as the data set, or 'None'."
-            )
-
-        tabu_list = []
-        current_model = start
-
-        iter_no = 0
-        while iter_no <= max_iter:
-            iter_no += 1
-
-            best_score_delta = 0
-            best_operation = None
-
-            # FIXME: This implementation does not cache the delta scores for the changes!!!!!!!!
-            for operation, score_delta in self._legal_operations(
-                current_model, tabu_list, max_indegree
-            ):
-                if score_delta > best_score_delta:
-                    best_operation = operation
-                    best_score_delta = score_delta
-
-            if best_operation is None or best_score_delta < epsilon:
-                break
-            elif best_operation[0] == "+":
-                current_model.add_edge(*best_operation[1])
-                tabu_list = ([("-", best_operation[1])] + tabu_list)[:tabu_length]
-            elif best_operation[0] == "-":
-                current_model.remove_edge(*best_operation[1])
-                tabu_list = ([("+", best_operation[1])] + tabu_list)[:tabu_length]
-            elif best_operation[0] == "flip":
-                X, Y = best_operation[1]
-                current_model.remove_edge(X, Y)
-                current_model.add_edge(Y, X)
-                tabu_list = ([best_operation] + tabu_list)[:tabu_length]
-
-        return current_model
+        if continuous and not isinstance(self.scoring_method, GaussianBicScore):
+            raise TypeError("Selected scoring_method {} incorrect for continuous data.".format(self.scoring_method))
+        if not continuous and not isinstance(self.scoring_method, (BdeuScore, BicScore, K2Score)):
+            raise TypeError("Selected scoring_method {} incorrect for discrete data".format(self.scoring_method))
 
 
-from collections import Counter
-
-class CacheDecomposableScore(object):
-
-    def __init__(self, graph, local_score, blacklist, whitelist):
-        self.nodes = list(graph.nodes)
+        self.nodes = list(data.columns.values)
         self.nodes_indices = {var: index for index, var in enumerate(self.nodes)}
         self.blacklist = set(blacklist)
         self.whitelist = set(whitelist)
-        self.graph = graph
 
-        nnodes = self.graph.number_of_nodes()
+        nnodes = len(self.nodes)
 
-        constraints_matrix = np.eye(nnodes)
+        self.constraints_matrix = np.full((nnodes, nnodes), True, dtype=np.bool)
+        np.fill_diagonal(self.constraints_matrix, False)
         for (source, dest) in self.blacklist:
             s = self.nodes_indices[source]
             d = self.nodes_indices[dest]
-            constraints_matrix[s, d] = 1
+            self.constraints_matrix[s, d] = False
 
         for (source, dest) in self.whitelist:
             s = self.nodes_indices[source]
             d = self.nodes_indices[dest]
-            constraints_matrix[s, d] = 1
-            constraints_matrix[d, s] = 1
+            self.constraints_matrix[s, d] = False
+            self.constraints_matrix[d, s] = False
 
-        self.reach_dict = self._node_reachability()
+        self.total_num_arcs = self.constraints_matrix.sum()
 
-        scores = np.empty((nnodes, nnodes))
-        constraints_matrix = self._add_acyclity_constraints(constraints_matrix)
-        self.cache = np.ma.array(scores, mask=constraints_matrix)
-        self._precompute_cache()
-        self.local_score = local_score
+        super(CachedHillClimbing, self).__init__(data, **kwargs)
 
-    def _node_reachability(self):
-        topo_list = list(nx.topological_sort(self.graph))
-        print(self.graph.edges)
-        reach_dict = {}
-        for node in reversed(topo_list):
-            reach_dict[node] = Counter(self.graph.successors(node))
-            for child in self.graph.successors(node):
-                reach_dict[node] = reach_dict[node] + (reach_dict[child])
-        return reach_dict
+    def _precompute_cache(self, graph, scores):
+        """
+        Precompute the scores for all the operations in the first iteration.
+        :param graph: Starting graph to compute node.
+        :param scores:  Matrix n x n of scores to be filled up.
+        :return:
+        """
+        for node in graph:
+            self._precompute_score_node(graph, scores, node)
 
-    def _add_acyclity_constraints(self, constraints_matrix):
-        for node in self.graph.nodes:
-            for dest in self.reach_dict[node].keys() - self.graph.successors(node):
-                constraints_matrix[self.nodes_indices[dest], self.nodes_indices[node]] = 1
-        return constraints_matrix
-
-    def _precompute_cache(self):
-        for node in self.graph:
-            parents = self.graph.get_parents(node)
-            self._precompute_node(node, parents)
-
-    def _precompute_node(self, node, parents):
+    def _precompute_score_node(self, graph, scores, node):
+        """
+        Precompute the score for the node in the first iteration. This method is slightly different to update_node_score()
+        because it is easier to deal with reversing scores at the start. In particular, when a change is produced in
+        'node', then 'update_node_score' needs to update the score of reversing a possible arc 'other_node' -> 'node' or
+        a possible arc 'node' -> 'other_node'.
+        :param graph: Starting graph to compute the score.
+        :param scores: Matrix n x n of scores to be filled up with the scores of operations in node 'node'.
+        :param node: Node for which operation scores on it will be computed.
+        :return:
+        """
+        parents = set(graph.get_parents(node))
         node_index = self.nodes_indices[node]
-        mask = np.ma.getmask(self.cache)
-        to_update = np.where(mask[:, node] == 0)[0]
+        to_update = np.where(self.constraints_matrix[:, node_index])[0]
 
-        for index in to_update:
-            updating_node = self.nodes[index]
-            if updating_node in parents:
-                # Delta score of removing arc 'updating_node' -> 'node'
-                self.cache[index, node_index] = self.local_score(node, parents.remove(updating_node)) - \
-                                                self.local_score(node, parents)
-                # Delta score of reversing arc 'updating_node' -> 'node'
-                if mask[node_index, index] == 0:
-                    updating_node_parents = set(self.graph.predecessors(updating_node))
-                    self.cache[node_index, index] = self.local_score(updating_node, updating_node_parents.add(node)) +\
-                                                    self.local_score(node, parents.remove(updating_node)) -\
-                                                    self.local_score(updating_node, updating_node_parents) -\
-                                                    self.local_score(node, parents)
+        local_score = self.scoring_method.local_score
+
+        for other_index in to_update:
+            other_node = self.nodes[other_index]
+            if graph.has_edge(other_node, node):
+                parents_new = parents.copy()
+                parents_new.remove(other_node)
+                # Delta score of removing arc 'other_node' -> 'node'
+                scores[other_index, node_index] = local_score(node, parents_new) - \
+                                                local_score(node, parents)
+            # Delta score of reversing arc 'node' -> 'other_node'
+            elif graph.has_edge(node, other_node):
+                other_node_parents = set(graph.ancestors(other_node))
+
+                parents_new = parents.copy()
+                parents_new.add(other_node)
+
+                other_node_parents_new = other_node_parents.copy()
+                other_node_parents_new.remove(node)
+                scores[node_index, other_index] = local_score(other_node, other_node_parents_new) +\
+                                                local_score(node, parents_new) -\
+                                                local_score(other_node, other_node_parents) -\
+                                                local_score(node, parents)
             else:
-                # Delta score of adding arc 'updating_node' -> 'node'
-                self.cache[index, node_index] = self.local_score(node, parents.add(updating_node)) - self.local_score(node, parents)
+                # Delta score of adding arc 'other_node' -> 'node'
+                parents_new = parents.copy()
+                parents_new.add(other_node)
+                scores[other_index, node_index] = local_score(node, parents_new) - local_score(node, parents)
 
-    def apply_operator(self, op):
-        operation, source, dest = op
+    def update_node_score(self, graph, scores, node):
+        """
+        Updates the relevant scores for a given node. When a change is produced, only scores related with dest_node
+        need to be updated. This method updates only those scores (page 818 of Koller & Friedman, 2009). Take into
+        account that whitelisted/blacklisted score movements need not to be updated. In particular:
+
+        * if an arc i->j is blacklisted:
+            - source[i,j] is never computed.
+            - source[j,i] is computed.
+        * if an arc i-> is whitelisted:
+            - source[i,j] is not computed.
+            - source[j,i] is not computed.
+
+        :param graph: Graph of the current model.
+        :param scores: Matrix n x n of scores to be updated.
+        :param node: Node where there was a change in the graph that needs updating scores.
+        :return:
+        """
+        parents = set(graph.get_parents(node))
+        node_index = self.nodes_indices[node]
+        to_update = np.where(self.constraints_matrix[:, node_index])[0]
+
+        local_score = self.scoring_method.local_score
+
+        for other_index in to_update:
+            other_node = self.nodes[other_index]
+
+            if graph.has_edge(other_node, node):
+                parents_new = parents.copy()
+                parents_new.remove(other_node)
+                # Delta score of removing arc 'other_node' -> 'node'
+                scores[other_index, node_index] = local_score(node, parents_new) - \
+                                                local_score(node, parents)
+
+
+                # Delta score of reversing arc 'other_node' -> 'node'
+                other_node_parents = set(graph.get_parents(other_node))
+                other_node_parents_new = other_node_parents.copy()
+                other_node_parents_new.add(node)
+
+                scores[node_index, other_index] = local_score(other_node, other_node_parents_new) +\
+                                                local_score(node, parents_new) -\
+                                                local_score(other_node, other_node_parents) - \
+                                                local_score(node, parents)
+
+            # Delta score of reversing arc 'node' -> 'other_node'
+            elif graph.has_edge(node, other_node):
+                other_node_parents = set(graph.get_parents(other_node))
+
+                parents_new = parents.copy()
+                parents_new.add(other_node)
+
+                other_node_parents_new = other_node_parents.copy()
+                other_node_parents_new.remove(node)
+                scores[other_index, node_index] = local_score(other_node, other_node_parents_new) +\
+                                                local_score(node, parents_new) -\
+                                                local_score(other_node, other_node_parents) -\
+                                                local_score(node, parents)
+
+            # Delta score of adding arc 'other_node' -> 'node'
+            else:
+                parents_new = parents.copy()
+                parents_new.add(other_node)
+                scores[other_index, node_index] = local_score(node, parents_new) - local_score(node, parents)
+
+    def apply_operator(self, op, graph, scores):
+        """
+        Applies the operator 'op' to the graph. This implies updating the graph and the cached scores.
+        :param op: Operation to apply (add, remove or reverse arcs).
+        :param graph: Graph to update.
+        :param scores: Matrix n x n of scores to update. It just updates the relevant scores given the operation.
+        :return:
+        """
+        operation, source, dest, _ = op
 
         if operation == "+":
-            self.graph.add_edge(source, dest)
-            # self.update_node_add(source, self.graph.predecessors(source))
+            graph.add_edge(source, dest)
+            self.update_node_score(graph, scores, dest)
         elif operation == "-":
-            self.graph.remove_edge(source, dest)
-            # self.update_node_remove(source, self.graph.predecessors(sour))
+            graph.remove_edge(source, dest)
+            self.update_node_score(graph, scores, dest)
         else:
-            self.graph.remove_edge(source, dest)
-            self.graph.add_edge(dest, source)
-            # self.update_nodes_flip(source, dest)
-            # self._precompute_node(source, self.graph.predecessors())
-            # self._precompute_node(dest, self.graph.predecessors())
+            graph.remove_edge(source, dest)
+            graph.add_edge(dest, source)
+            # TODO FIXME: The local score for reversing the arc 'source' -> 'dest' is computed twice, once for each call to update_node_score().
+            self.update_node_score(graph, scores, source)
+            self.update_node_score(graph, scores, dest)
 
-    def best_operator(self):
-        nnodes = self.graph.number_of_nodes()
-        (source, dest) = np.unravel_index(self.cache.argmax(), (nnodes, nnodes))
-        delta_score = self.cache[source, dest]
-        node_source = self.nodes[source]
-        node_dest = self.nodes[dest]
-        if self.graph.has_edge(node_source, node_dest):
-            return ("-", node_source, node_dest, delta_score)
-        elif self.graph.has_edge(node_dest, node_source):
-            return ("flip", node_dest, node_source, delta_score)
+    def best_operator(self, graph, scores):
+        """
+        Finds the best operator to apply to the graph.
+        :param graph: The current graph model.
+        :param scores: A matrix of n x n where score[i,j] is the score of adding the arc i->j if the arc is not currently
+        in the graph. If the arc i->j is currently in the graph, score[i,j] is the score of removing the, and
+        score[j,i] is the score of reversing the arc.
+        :return: The best operator (op, source_node, dest_node, delta_score).
+        """
+        nnodes = graph.number_of_nodes()
+
+        # Sort in descending order. That is, [::-1].
+        sort_scores = np.unravel_index(np.argsort(scores.ravel())[::-1], (nnodes, nnodes))
+
+        for i in range(self.total_num_arcs):
+            source_index = sort_scores[0][i]
+            dest_index = sort_scores[1][i]
+            delta_score = scores[source_index, dest_index]
+            source_node = self.nodes[source_index]
+            dest_node = self.nodes[dest_index]
+
+            if graph.has_edge(source_node, dest_node):
+                return ("-", source_node, dest_node, delta_score)
+            elif graph.has_edge(dest_node, source_node):
+                graph.remove_edge(dest_node, source_node)
+                graph.add_edge(source_node, dest_node)
+                must_check_for_cycle = False if not any(graph.get_parents(source_node)) or \
+                                               not any(graph.get_children(dest_node)) else True
+                if must_check_for_cycle:
+                    isdag = nx.is_directed_acyclic_graph(graph)
+
+                    graph.remove_edge(source_node, dest_node)
+                    graph.add_edge(dest_node, source_node)
+
+                    if isdag:
+                        return ("flip", dest_node, source_node, delta_score)
+                    else:
+                        continue
+                else:
+                    graph.remove_edge(source_node, dest_node)
+                    graph.add_edge(dest_node, source_node)
+                    return ("flip", dest_node, source_node, delta_score)
+            else:
+                must_check_for_cycle = False if not any(graph.get_parents(source_node)) or \
+                                               not any(graph.get_children(dest_node)) else True
+
+                if must_check_for_cycle:
+                    graph.add_edge(source_node, dest_node)
+                    isdag = nx.is_directed_acyclic_graph(graph)
+
+                    graph.remove_edge(source_node, dest_node)
+                    if isdag:
+                        return ("+", dest_node, source_node, delta_score)
+                    else:
+                        continue
+                else:
+                    return ("+", source_node, dest_node, delta_score)
+        return None
+
+    def best_operator_max_indegree(self, graph, scores, max_indegree):
+        """
+        Finds the best operator to apply to the graph. This is a version of self.best_operation() with checks for
+        maximum indegree for maximum performance when indegree is not relevant.
+        :param graph: The current graph model.
+        :param scores: A matrix of n x n where score[i,j] is the score of adding the arc i->j if the arc is not currently
+        in the graph. If the arc i->j is currently in the graph, score[i,j] is the score of removing the, and
+        score[j,i] is the score of reversing the arc.
+        :return: The best operator (op, source_node, dest_node, delta_score).
+        """
+        nnodes = graph.number_of_nodes()
+
+        # Sort in descending order. That is, [::-1].
+        sort_scores = np.unravel_index(np.argsort(scores.ravel())[::-1], (nnodes, nnodes))
+
+        for i in range(self.total_num_arcs):
+            source_index = sort_scores[0][i]
+            dest_index = sort_scores[1][i]
+            delta_score = scores[source_index, dest_index]
+            source_node = self.nodes[source_index]
+            dest_node = self.nodes[dest_index]
+
+            if graph.has_edge(source_node, dest_node):
+                return ("-", source_node, dest_node, delta_score)
+            elif graph.has_edge(dest_node, source_node):
+                if len(graph.get_parents(dest_node)) >= max_indegree:
+                    continue
+
+                graph.remove_edge(dest_node, source_node)
+                graph.add_edge(source_node, dest_node)
+                must_check_for_cycle = False if not any(graph.get_parents(source_node)) or \
+                                               not any(graph.get_children(dest_node)) else True
+                if must_check_for_cycle:
+                    isdag = nx.is_directed_acyclic_graph(graph)
+
+                    graph.remove_edge(source_node, dest_node)
+                    graph.add_edge(dest_node, source_node)
+
+                    if isdag:
+                        return ("flip", dest_node, source_node, delta_score)
+                    else:
+                        continue
+                else:
+                    graph.remove_edge(source_node, dest_node)
+                    graph.add_edge(dest_node, source_node)
+                    return ("flip", dest_node, source_node, delta_score)
+            else:
+                if len(graph.get_parents(dest_node)) >= max_indegree:
+                    continue
+
+                must_check_for_cycle = False if not any(graph.get_parents(source_node)) or \
+                                               not any(graph.get_children(dest_node)) else True
+
+                if must_check_for_cycle:
+                    graph.add_edge(source_node, dest_node)
+                    isdag = nx.is_directed_acyclic_graph(graph)
+
+                    graph.remove_edge(source_node, dest_node)
+                    if isdag:
+                        return ("+", source_node, dest_node, delta_score)
+                    else:
+                        continue
+                else:
+                    return ("+", source_node, dest_node, delta_score)
+        return None
+
+
+    def _check_blacklist(self, graph):
+        """
+        Checks that blacklisted arcs are not included in the starting graph.
+        :param graph: Starting graph.
+        :return:
+        """
+        for edge in graph.edges:
+            if edge in self.blacklist:
+                raise ValueError("Blacklisted arc included in the starting graph.")
+
+
+    def force_whitelist(self, graph):
+        """
+        Includes whitelisted arcs in the graph if they are not included.
+        :param graph: Starting graph.
+        :return:
+        """
+        for edge in self.whitelist:
+            graph.add_edge(edge[0], edge[1])
+
+        if not nx.is_directed_acyclic_graph(graph):
+            raise ValueError("Whitelisted arcs generates cycles in the starting graph.")
+
+    # FIXME: Implement tabu.
+    def estimate(
+        self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, max_iter=1e6
+    ):
+        """
+        This method runs the hill climbing algorithm.
+
+        :param start: Starting graph structure. If None, it starts with an empty graph.
+        :param tabu_length:
+        :param max_indegree: Maximum indegree allowed for each node. If None, no maximum_indegree restriction is applied.
+        :param epsilon: Minimum delta score necessary to continue iterating.
+        :param max_iter: Maximum number of iterations to apply.
+        :return: Best graph structure found by the algorithm.
+        """
+        if start is None:
+            start = DAG()
+            start.add_nodes_from(self.nodes)
+
+        if max_indegree is None:
+            best_operator_fun = self.best_operator
         else:
-            return ("+", node_source, node_dest, delta_score)
+            best_operator_fun = lambda graph, scores: self.best_operator_max_indegree(graph, scores, max_indegree)
+
+
+        self._check_blacklist(start)
+        self.force_whitelist(start)
+
+        nnodes = len(self.nodes)
+        scores = np.empty((nnodes, nnodes))
+        self._precompute_cache(start, scores)
+        # Mark constraints with the lowest value.
+        maximum_fill_value = np.ma.maximum_fill_value(scores)
+        scores[~self.constraints_matrix] = maximum_fill_value
+
+        current_model = start
+
+        iter_no = 0
+        # last_delta = np.finfo(np.float64).max
+        print("Starting score: " + str(self._total_score(current_model)))
+        while iter_no <= max_iter:
+            iter_no += 1
+            op = best_operator_fun(current_model, scores)
+            if op is None:
+                break
+
+            delta_score = op[3]
+            if delta_score < epsilon:
+                break
+
+            print("Best op: " + str(op))
+            self.apply_operator(op, current_model, scores)
+            print("Current score: " + str(self._total_score(current_model)))
+
+        final_score = self._total_score(current_model)
+        print("Final score: " + str(final_score))
+        return current_model
+
+    def _total_score(self, graph):
+        """
+        Computes the total score in the network. As the score method is decomposable. The total score is the sum of
+        the local scores.
+        :param graph: Graph to be evaluated.
+        :return: Total score of the network.
+        """
+        total_score = 0
+        for node in graph.nodes:
+            parents = graph.get_parents(node)
+            total_score += self.scoring_method.local_score(node, parents)
+
+        return total_score

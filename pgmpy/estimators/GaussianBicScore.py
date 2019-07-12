@@ -45,23 +45,17 @@ class GaussianBicScore(StructureScore):
     def local_score(self, variable, parents):
         'Computes a score that measures how much a \
         given variable is "influenced" by a given list of potential parents.'
-
+        parents = list(parents)
         node_data = self.data[[variable] + parents].dropna()
-        linregress_data = np.column_stack((np.ones(node_data.shape[0]), node_data[parents]))
+        N = node_data.shape[0]
+        linregress_data = np.column_stack((np.ones(N), node_data[parents]))
         (beta, res, _, _) = np.linalg.lstsq(linregress_data, node_data[variable], rcond=None)
 
         if node_data.shape[0] <= 1:
             variance = 0
         else:
-            variance = res[0] / (node_data.shape[0] - 1)
+            variance = res[0] / (N - 1)
 
-        loglik = 0
-        for index, row in node_data.iterrows():
-            mean = beta[0] + beta[1:].dot(row[parents])
-            loglik += scipy.stats.norm.logpdf(row[variable], mean, np.sqrt(variance))
+        loglik = (1-N)/2 - N/2*np.log(2*np.pi) - N*np.log(np.sqrt(variance))
+        return loglik - np.log(N) * 0.5 * (len(parents) + 2)
 
-        N = node_data.shape[0]
-        loglik_resid = (1-N)/2 - N/2*np.log(2*np.pi) - N*np.log(np.sqrt(variance))
-
-        print("Difference loglik: " + str(loglik_resid - loglik))
-        # return score

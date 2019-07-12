@@ -5,8 +5,10 @@ from pgmpy.estimators.StructureScore import StructureScore
 from pgmpy.estimators.K2Score import K2Score
 from pgmpy.estimators.BdeuScore import BdeuScore
 from pgmpy.estimators.BicScore import BicScore
+from pgmpy.estimators.GaussianBicScore import GaussianBicScore
 from pgmpy.estimators.ExhaustiveSearch import ExhaustiveSearch
 from pgmpy.estimators.HillClimbSearch import HillClimbSearch
+from pgmpy.estimators.CachedHillClimbing import CachedHillClimbing
 from pgmpy.estimators.ConstraintBasedEstimator import ConstraintBasedEstimator
 from pgmpy.estimators.SEMEstimator import SEMEstimator, IVEstimator
 
@@ -18,10 +20,13 @@ __all__ = [
     "StructureEstimator",
     "ExhaustiveSearch",
     "HillClimbSearch",
-    "ConstraintBasedEstimator" "StructureScore",
+    "CachedHillClimbing",
+    "ConstraintBasedEstimator",
+    "StructureScore",
     "K2Score",
     "BdeuScore",
     "BicScore",
+    "GaussianBicScore",
     "SEMEstimator",
     "IVEstimator",
 ]

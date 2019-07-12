@@ -205,6 +205,7 @@ class DAG(nx.DiGraph):
         >>> G.edge['Ankur']['Maria']
         {'weight': 0.1}
         """
+        # FIXME: This method does not check for cycles.
         super(DAG, self).add_edge(u, v, weight=weight)
 
     def add_edges_from(self, ebunch, weights=None):
@@ -253,6 +254,7 @@ class DAG(nx.DiGraph):
         >>> G.edge['Maria']['Mason']
         {'weight': 0.5}
         """
+        # FIXME: This method does not check for cycles.
         ebunch = list(ebunch)
 
         if weights:
