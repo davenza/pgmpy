@@ -6,6 +6,7 @@ from pgmpy.estimators.K2Score import K2Score
 from pgmpy.estimators.BdeuScore import BdeuScore
 from pgmpy.estimators.BicScore import BicScore
 from pgmpy.estimators.GaussianBicScore import GaussianBicScore
+from pgmpy.estimators.BGeScore import BGeScore
 from pgmpy.estimators.ExhaustiveSearch import ExhaustiveSearch
 from pgmpy.estimators.HillClimbSearch import HillClimbSearch
 from pgmpy.estimators.CachedHillClimbing import CachedHillClimbing
@@ -27,6 +28,7 @@ __all__ = [
     "BdeuScore",
     "BicScore",
     "GaussianBicScore",
+    "BGeScore",
     "SEMEstimator",
     "IVEstimator",
 ]

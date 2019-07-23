@@ -3,7 +3,7 @@
 import numpy as np
 import networkx as nx
 
-from pgmpy.estimators import StructureEstimator, K2Score, GaussianBicScore, BdeuScore, BicScore
+from pgmpy.estimators import StructureEstimator, K2Score, GaussianBicScore, BdeuScore, BicScore, BGeScore
 from pgmpy.base import DAG
 
 
@@ -37,7 +37,7 @@ class CachedHillClimbing(StructureEstimator):
         else:
             self.scoring_method = scoring_method
 
-        if continuous and not isinstance(self.scoring_method, GaussianBicScore):
+        if continuous and not isinstance(self.scoring_method, (GaussianBicScore, BGeScore)):
             raise TypeError("Selected scoring_method {} incorrect for continuous data.".format(self.scoring_method))
         if not continuous and not isinstance(self.scoring_method, (BdeuScore, BicScore, K2Score)):
             raise TypeError("Selected scoring_method {} incorrect for discrete data".format(self.scoring_method))

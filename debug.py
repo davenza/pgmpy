@@ -1,9 +1,10 @@
 import numpy as np
+np.seterr(all='raise')
 import pandas as pd
 
 import networkx as nx
 
-from pgmpy.estimators import CachedHillClimbing, GaussianBicScore
+from pgmpy.estimators import CachedHillClimbing, GaussianBicScore, BGeScore
 
 # Example data a -> c <- b
 a = np.random.normal(0, 1, 5000)
@@ -53,7 +54,7 @@ if __name__ == '__main__':
 
     # hc_ecoli = HillClimbSearch(ecoli_data, scoring_method=GaussianBicScore(ecoli_data))
     # network = hc_ecoli.estimate()
-    hc_ecoli = CachedHillClimbing(ecoli_data)
+    hc_ecoli = CachedHillClimbing(ecoli_data, scoring_method=BGeScore(ecoli_data))
     network = hc_ecoli.estimate()
     to_bnlearn_str(network)
     print(network.edges)
