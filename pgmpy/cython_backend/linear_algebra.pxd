@@ -1,0 +1,3 @@
+cdef void inverse(double[:,:] mat, double[:,:] out_inv)
+cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv)
+cdef dgemv(double alpha, double[:,:] A, double[:] x, double beta, double[:] y)

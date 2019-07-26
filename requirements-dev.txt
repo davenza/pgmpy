@@ -10,3 +10,4 @@ statsmodels
 black
 tqdm
 joblib
+cython

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 from setuptools import setup, find_packages
+from Cython.Build import cythonize
 
+import numpy as np
 import pgmpy
 
 setup(
@@ -26,4 +28,8 @@ setup(
     ],
     long_description="https://github.com/pgmpy/pgmpy/blob/dev/README.md",
     install_requires=[],
+    ext_modules=cythonize(["pgmpy/estimators/BGeScore.pyx",
+                           "pgmpy/cython_backend/linear_algebra.pyx"], annotate=True),
+    include_dirs=[np.get_include()],
+    zip_safe=False
 )
