@@ -167,13 +167,14 @@ cdef double[:,:] get_covariance_data(double[:,:] linregress_data, double[:] mean
     cdef Py_ssize_t i, j, m
 
     cdef double tmp
-    cdef double[:,:] cov = np.empty((k,k))
+    cdef double[:,:] cov = np.zeros((k,k))
+
     for i in range(k):
-        for j in range(k):
+        for j in range(i,k):
             for m in range(N):
                 cov[i,j] += (linregress_data[m,i] - means[i]) * (linregress_data[m, j] - means[j])
 
-            cov[i,j] /= N-1
+            cov[i,j] = cov[j,i] = cov[i,j] / (N-1)
     return cov
 
 
@@ -189,6 +190,9 @@ cdef void _build_tau(double[:,:] linregress_data, double phi_coef, double iss, d
     cdef Py_ssize_t i, j
 
     cdef double[:,:] inv_cov = get_covariance_data(linregress_data, means)
+    np.set_printoptions(precision=8)
+    np.set_printoptions(suppress=True)
+
     for i in range(ncol):
         for j in range(ncol):
             inv_cov[i,j] *= phi_coef
@@ -245,7 +249,9 @@ cdef double _local_score_with_parents(double[:,:] linregress_data, double[:] var
     """
     Computes a score that measures how much a given variable is "influenced" by a given list of potential parents.
 
-    See page 23 of Bottcher's PhD thesis.
+    See page 23 of Bottcher's PhD thesis or "Learning Conditional Gaussian Networks", Bottcher, 2004 .
+    
+    Based on bnlearn's code (wishart.posterior.c).
     """
     cdef Py_ssize_t N = linregress_data.shape[0], ncol = linregress_data.shape[1], tau_ncol = ncol + 1
 
@@ -279,7 +285,6 @@ cdef double _local_score_with_parents(double[:,:] linregress_data, double[:] var
 
     cdef int rho = iss + ncol
 
-
     cdef double[:] dgemv_workspace = np.empty((tau_ncol))
     dgemv_workspace[0] = 1
 
@@ -289,7 +294,6 @@ cdef double _local_score_with_parents(double[:,:] linregress_data, double[:] var
 
         for j in range(1, tau_ncol):
             zi[j] = linregress_data[i,j-1]
-
 
         xprod = mahalanobis(zi, inv_tau, zi)
 
@@ -317,6 +321,7 @@ cdef double _local_score_with_parents(double[:,:] linregress_data, double[:] var
         memcpy(&old_mu[0], &mu[0], tau_ncol * sizeof(double))
 
         # oldtau*mu + variable_data[i]*zi
+        # TODO: Check dgemv vs dgemm.
         linear_algebra.dgemv(1, old_tau, mu, 0, tau_mu)
         for j in range(tau_ncol):
             dgemv_workspace[j] = tau_mu[j] + zi[j]*variable_data[i]

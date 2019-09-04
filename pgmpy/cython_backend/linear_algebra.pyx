@@ -7,7 +7,7 @@ cimport scipy.linalg.cython_blas as cython_blas
 
 import numpy as np
 
-cdef inverse_dgetr(double[:,:] mat, double[:,:] out_inv):
+cdef void inverse_dgetr(double[:,:] mat, double[:,:] out_inv):
     """
     https://stackoverflow.com/questions/3519959/computing-the-inverse-of-a-matrix-using-lapack-in-c
     :param mat: 
@@ -40,7 +40,7 @@ cdef inverse_dgetr(double[:,:] mat, double[:,:] out_inv):
         free(workspace) # the "try ... finally" ensures that this is freed
 
 
-cdef inverse_dpotr(double[:,:] mat, double[:,:] out_inv):
+cdef void inverse_dpotr(double[:,:] mat, double[:,:] out_inv):
     """
     This function inverses symmetric positive definite matrices.
     :param mat: 
@@ -50,6 +50,7 @@ cdef inverse_dpotr(double[:,:] mat, double[:,:] out_inv):
     # and that mat is actually a float64 array
     cdef int k = mat.shape[0]
     cdef char uplo = 'U'
+    cdef Py_ssize_t i,j
 
     if (&mat[0,0] != &out_inv[0,0]):
         memcpy(&out_inv[0,0], &mat[0,0], k*k*sizeof(double))
@@ -58,10 +59,12 @@ cdef inverse_dpotr(double[:,:] mat, double[:,:] out_inv):
 
     cdef double* mat_pointer = &out_inv[0,0]
     # I suspect you should be doing a check that mat_pointer has been assigned
-
     cython_lapack.dpotrf(&uplo,&k,mat_pointer,&k,&info)
     cython_lapack.dpotri(&uplo,&k,mat_pointer,&k,&info)
 
+    for i in range(k):
+        for j in range(i+1,k):
+            out_inv[i,j] = out_inv[j,i]
 
 # ######################################################################################################
 # ######################################################################################################
@@ -133,102 +136,109 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
     
     **IMPORTANT NOTE: mat should be different to out_inv**.
     """
-    cdef Py_ssize_t k = mat.shape[0], i, jinverse_dpotrf
+    cdef Py_ssize_t k = mat.shape[0], i, j
     cdef double inv_det
-    # TODO: Check out_inv is different pointer to mat.
+    cdef double tmp_inv[5][5]
+
     if k == 2:
         inv_det = 1.0 / (mat[0,0]*mat[1,1] - mat[0,1]*mat[1,0])
+        tmp_inv[0][0] = mat[0,0]
         out_inv[0,0] = mat[1,1] * inv_det
         out_inv[0,1] = -mat[0,1] * inv_det
         out_inv[1,0] = -mat[1,0] * inv_det
-        out_inv[1,1] = mat[0,0] * inv_det
+        out_inv[1,1] = tmp_inv[0][0] * inv_det
     elif k == 3:
         inv_det = 1.0 / (mat[0,0]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) +
                          mat[0,1]*(mat[1,2]*mat[2,0] - mat[1,0]*mat[2,2]) +
                          mat[0,2]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
 
-        out_inv[0,0] = (mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) * inv_det
-        out_inv[0,1] = -(mat[0,1]*mat[2,2] - mat[0,2]*mat[2,1]) * inv_det
-        out_inv[0,2] = (mat[0,1]*mat[1,2] - mat[0,2]*mat[1,1]) * inv_det
-        out_inv[1,0] = -(mat[1,0]*mat[2,2] - mat[1,2]*mat[2,0]) * inv_det
-        out_inv[1,1] = (mat[0,0]*mat[2,2] - mat[0,2]*mat[2,0]) * inv_det
-        out_inv[1,2] = -(mat[0,0]*mat[1,2] - mat[0,2]*mat[1,0]) * inv_det
-        out_inv[2,0] = (mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) * inv_det
-        out_inv[2,1] = -(mat[0,0]*mat[2,1] - mat[0,1]*mat[2,0]) * inv_det
-        out_inv[2,2] = (mat[0,0]*mat[1,1] - mat[0,1]*mat[1,0]) * inv_det
-    elif k == 4:
-        out_inv[0,0] = (mat[1,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
-                        mat[1,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
-                        mat[1,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) )
-
-        out_inv[0,1] = -(mat[0,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
-                        mat[0,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
-                        mat[0,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) )
-
-        out_inv[0,2] = (mat[0,1]*(mat[1,2]*mat[3,3] - mat[1,3]*mat[3,2]) +
-                        mat[0,2]*(mat[1,3]*mat[3,1] - mat[1,1]*mat[3,3]) +
-                        mat[0,3]*(mat[1,1]*mat[3,2] - mat[1,2]*mat[3,1]) )
-
-        out_inv[0,3] = -(mat[0,1]*(mat[1,2]*mat[2,3] - mat[1,3]*mat[2,2]) +
-                        mat[0,2]*(mat[1,3]*mat[2,1] - mat[1,1]*mat[2,3]) +
-                        mat[0,3]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) )
-
-        out_inv[1,0] = -(mat[1,0]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
-                        mat[1,2]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
-                        mat[1,3]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) )
-
-        out_inv[1,1] = (mat[0,0]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
-                        mat[0,2]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
-                        mat[0,3]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) )
-
-        out_inv[1,2] = -(mat[0,0]*(mat[1,2]*mat[3,3] - mat[1,3]*mat[3,2]) +
-                        mat[0,2]*(mat[1,3]*mat[3,0] - mat[1,0]*mat[3,3]) +
-                        mat[0,3]*(mat[1,0]*mat[3,2] - mat[1,2]*mat[3,0]) )
-
-        out_inv[1,3] = (mat[0,0]*(mat[1,2]*mat[2,3] - mat[1,3]*mat[2,2]) +
-                        mat[0,2]*(mat[1,3]*mat[2,0] - mat[1,0]*mat[2,3]) +
-                        mat[0,3]*(mat[1,0]*mat[2,2] - mat[1,2]*mat[2,0]) )
-
-        out_inv[2,0] = (mat[1,0]*(mat[2,1]*mat[3,3] - mat[2,3]*mat[3,1]) +
-                        mat[1,1]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
-                        mat[1,3]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0]) )
-
-        out_inv[2,1] = -(mat[0,0]*(mat[2,1]*mat[3,3] - mat[2,3]*mat[3,1]) +
-                        mat[0,1]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
-                        mat[0,3]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0]) )
-
-        out_inv[2,2] = (mat[0,0]*(mat[1,1]*mat[3,3] - mat[1,3]*mat[3,1]) +
-                        mat[0,1]*(mat[1,3]*mat[3,0] - mat[1,0]*mat[3,3]) +
-                        mat[0,3]*(mat[1,0]*mat[3,1] - mat[1,1]*mat[3,0]) )
-
-        out_inv[2,3] = -(mat[0,0]*(mat[1,1]*mat[2,3] - mat[1,3]*mat[2,1]) +
-                         mat[0,1]*(mat[1,3]*mat[2,0] - mat[1,0]*mat[2,3]) +
-                         mat[0,3]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
-
-        out_inv[3,0] = -(mat[1,0]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) +
-                         mat[1,1]*(mat[2,2]*mat[3,0] - mat[2,0]*mat[3,2]) +
-                         mat[1,2]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0]) )
-
-        out_inv[3,1] = (mat[0,0]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) +
-                        mat[0,1]*(mat[2,2]*mat[3,0] - mat[2,0]*mat[3,2]) +
-                        mat[0,2]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0]) )
-
-        out_inv[3,2] = -(mat[0,0]*(mat[1,1]*mat[3,2] - mat[1,2]*mat[3,1]) +
-                         mat[0,1]*(mat[1,2]*mat[3,0] - mat[1,0]*mat[3,2]) +
-                         mat[0,2]*(mat[1,0]*mat[3,1] - mat[1,1]*mat[3,0]) )
-
-        out_inv[3,3] = (mat[0,0]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) +
-                        mat[0,1]*(mat[1,2]*mat[2,0] - mat[1,0]*mat[2,2]) +
-                        mat[0,2]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
-
-        inv_det = 1.0/(mat[0,0]*out_inv[0,0] + mat[1,0]*out_inv[0,1] + mat[2,0]*out_inv[0,2] + mat[3,0]*out_inv[0,3])
+        tmp_inv[0][0] = (mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1])
+        tmp_inv[0][1] = -(mat[0,1]*mat[2,2] - mat[0,2]*mat[2,1])
+        tmp_inv[0][2] = (mat[0,1]*mat[1,2] - mat[0,2]*mat[1,1])
+        tmp_inv[1][0] = -(mat[1,0]*mat[2,2] - mat[1,2]*mat[2,0])
+        tmp_inv[1][1] = (mat[0,0]*mat[2,2] - mat[0,2]*mat[2,0])
+        tmp_inv[1][2] = -(mat[0,0]*mat[1,2] - mat[0,2]*mat[1,0])
+        tmp_inv[2][0] = (mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0])
+        tmp_inv[2][1] = -(mat[0,0]*mat[2,1] - mat[0,1]*mat[2,0])
+        tmp_inv[2][2] = (mat[0,0]*mat[1,1] - mat[0,1]*mat[1,0])
 
         for i in range(k):
             for j in range(k):
-                out_inv[i,j] *= inv_det
+                out_inv[i,j] = tmp_inv[i][j] * inv_det
+
+    elif k == 4:
+        tmp_inv[0][0] = (mat[1,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
+                        mat[1,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
+                        mat[1,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) )
+
+        tmp_inv[0][1] = -(mat[0,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
+                        mat[0,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
+                        mat[0,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) )
+
+        tmp_inv[0][2] = (mat[0,1]*(mat[1,2]*mat[3,3] - mat[1,3]*mat[3,2]) +
+                        mat[0,2]*(mat[1,3]*mat[3,1] - mat[1,1]*mat[3,3]) +
+                        mat[0,3]*(mat[1,1]*mat[3,2] - mat[1,2]*mat[3,1]) )
+
+        tmp_inv[0][3] = -(mat[0,1]*(mat[1,2]*mat[2,3] - mat[1,3]*mat[2,2]) +
+                        mat[0,2]*(mat[1,3]*mat[2,1] - mat[1,1]*mat[2,3]) +
+                        mat[0,3]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) )
+
+        tmp_inv[1][0] = -(mat[1,0]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
+                        mat[1,2]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
+                        mat[1,3]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) )
+
+        tmp_inv[1][1] = (mat[0,0]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
+                        mat[0,2]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
+                        mat[0,3]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) )
+
+        tmp_inv[1][2] = -(mat[0,0]*(mat[1,2]*mat[3,3] - mat[1,3]*mat[3,2]) +
+                        mat[0,2]*(mat[1,3]*mat[3,0] - mat[1,0]*mat[3,3]) +
+                        mat[0,3]*(mat[1,0]*mat[3,2] - mat[1,2]*mat[3,0]) )
+
+        tmp_inv[1][3] = (mat[0,0]*(mat[1,2]*mat[2,3] - mat[1,3]*mat[2,2]) +
+                        mat[0,2]*(mat[1,3]*mat[2,0] - mat[1,0]*mat[2,3]) +
+                        mat[0,3]*(mat[1,0]*mat[2,2] - mat[1,2]*mat[2,0]) )
+
+        tmp_inv[2][0] = (mat[1,0]*(mat[2,1]*mat[3,3] - mat[2,3]*mat[3,1]) +
+                        mat[1,1]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
+                        mat[1,3]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0]) )
+
+        tmp_inv[2][1] = -(mat[0,0]*(mat[2,1]*mat[3,3] - mat[2,3]*mat[3,1]) +
+                        mat[0,1]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
+                        mat[0,3]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0]) )
+
+        tmp_inv[2][2] = (mat[0,0]*(mat[1,1]*mat[3,3] - mat[1,3]*mat[3,1]) +
+                        mat[0,1]*(mat[1,3]*mat[3,0] - mat[1,0]*mat[3,3]) +
+                        mat[0,3]*(mat[1,0]*mat[3,1] - mat[1,1]*mat[3,0]) )
+
+        tmp_inv[2][3] = -(mat[0,0]*(mat[1,1]*mat[2,3] - mat[1,3]*mat[2,1]) +
+                         mat[0,1]*(mat[1,3]*mat[2,0] - mat[1,0]*mat[2,3]) +
+                         mat[0,3]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
+
+        tmp_inv[3][0] = -(mat[1,0]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) +
+                         mat[1,1]*(mat[2,2]*mat[3,0] - mat[2,0]*mat[3,2]) +
+                         mat[1,2]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0]) )
+
+        tmp_inv[3][1] = (mat[0,0]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) +
+                        mat[0,1]*(mat[2,2]*mat[3,0] - mat[2,0]*mat[3,2]) +
+                        mat[0,2]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0]) )
+
+        tmp_inv[3][2] = -(mat[0,0]*(mat[1,1]*mat[3,2] - mat[1,2]*mat[3,1]) +
+                         mat[0,1]*(mat[1,2]*mat[3,0] - mat[1,0]*mat[3,2]) +
+                         mat[0,2]*(mat[1,0]*mat[3,1] - mat[1,1]*mat[3,0]) )
+
+        tmp_inv[3][3] = (mat[0,0]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) +
+                        mat[0,1]*(mat[1,2]*mat[2,0] - mat[1,0]*mat[2,2]) +
+                        mat[0,2]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
+
+        inv_det = 1.0/(mat[0,0]*tmp_inv[0][0] + mat[1,0]*tmp_inv[0][1] + mat[2,0]*tmp_inv[0][2] + mat[3,0]*tmp_inv[0][3])
+
+        for i in range(k):
+            for j in range(k):
+                out_inv[i,j] = tmp_inv[i][j] * inv_det
 
     elif k==5:
-        out_inv[0,0] = (mat[1,1]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[0][0] = (mat[1,1]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[2,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[2,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[1,2]*(mat[2,1]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -241,7 +251,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[2,2]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1]) +
                 mat[2,3]*(mat[3,2]*mat[4,1] - mat[3,1]*mat[4,2])))
 
-        out_inv[0,1] = -(mat[0,1]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[0][1] = -(mat[0,1]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[2,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[2,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[0,2]*(mat[2,1]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -254,7 +264,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[2,2]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1]) +
                 mat[2,3]*(mat[3,2]*mat[4,1] - mat[3,1]*mat[4,2])))
 
-        out_inv[0,2] = (mat[0,1]*(mat[1,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[0][2] = (mat[0,1]*(mat[1,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[1,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[1,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[0,2]*(mat[1,1]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -267,7 +277,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1]) +
                 mat[1,3]*(mat[3,2]*mat[4,1] - mat[3,1]*mat[4,2])))
 
-        out_inv[0,3] = -(mat[0,1]*(mat[1,2]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
+        tmp_inv[0][3] = -(mat[0,1]*(mat[1,2]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
                 mat[1,3]*(mat[2,4]*mat[4,2] - mat[2,2]*mat[4,4]) +
                 mat[1,4]*(mat[2,2]*mat[4,3] - mat[2,3]*mat[4,2])) +
                 mat[0,2]*(mat[1,1]*(mat[2,4]*mat[4,3] - mat[2,3]*mat[4,4]) +
@@ -280,7 +290,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[2,1]*mat[4,3] - mat[2,3]*mat[4,1]) +
                 mat[1,3]*(mat[2,2]*mat[4,1] - mat[2,1]*mat[4,2])))
 
-        out_inv[0,4] = (mat[0,1]*(mat[1,2]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
+        tmp_inv[0][4] = (mat[0,1]*(mat[1,2]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
                 mat[1,3]*(mat[2,4]*mat[3,2] - mat[2,2]*mat[3,4]) +
                 mat[1,4]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2])) +
                 mat[0,2]*(mat[1,1]*(mat[2,4]*mat[3,3] - mat[2,3]*mat[3,4]) +
@@ -293,7 +303,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[2,1]*mat[3,3] - mat[2,3]*mat[3,1]) +
                 mat[1,3]*(mat[2,2]*mat[3,1] - mat[2,1]*mat[3,2])))
 
-        out_inv[1,0] = -(mat[1,0]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[1][0] = -(mat[1,0]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[2,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[2,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[1,2]*(mat[2,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -306,7 +316,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[2,2]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
                 mat[2,3]*(mat[3,2]*mat[4,0] - mat[3,0]*mat[4,2])))
 
-        out_inv[1,1] = (mat[0,0]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[1][1] = (mat[0,0]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[2,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[2,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[0,2]*(mat[2,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -319,7 +329,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[2,2]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
                 mat[2,3]*(mat[3,2]*mat[4,0] - mat[3,0]*mat[4,2])))
 
-        out_inv[1,2] = -(mat[0,0]*(mat[1,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[1][2] = -(mat[0,0]*(mat[1,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[1,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[1,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[0,2]*(mat[1,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -332,7 +342,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
                 mat[1,3]*(mat[3,2]*mat[4,0] - mat[3,0]*mat[4,2])))
 
-        out_inv[1,3] = (mat[0,0]*(mat[1,2]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
+        tmp_inv[1][3] = (mat[0,0]*(mat[1,2]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
                 mat[1,3]*(mat[2,4]*mat[4,2] - mat[2,2]*mat[4,4]) +
                 mat[1,4]*(mat[2,2]*mat[4,3] - mat[2,3]*mat[4,2])) +
                 mat[0,2]*(mat[1,0]*(mat[2,4]*mat[4,3] - mat[2,3]*mat[4,4]) +
@@ -345,7 +355,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[2,0]*mat[4,3] - mat[2,3]*mat[4,0]) +
                 mat[1,3]*(mat[2,2]*mat[4,0] - mat[2,0]*mat[4,2])))
 
-        out_inv[1,4] = -(mat[0,0]*(mat[1,2]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
+        tmp_inv[1][4] = -(mat[0,0]*(mat[1,2]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
                 mat[1,3]*(mat[2,4]*mat[3,2] - mat[2,2]*mat[3,4]) +
                 mat[1,4]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2])) +
                 mat[0,2]*(mat[1,0]*(mat[2,4]*mat[3,3] - mat[2,3]*mat[3,4]) +
@@ -358,7 +368,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[2,0]*mat[3,3] - mat[2,3]*mat[3,0]) +
                 mat[1,3]*(mat[2,2]*mat[3,0] - mat[2,0]*mat[3,2])))
 
-        out_inv[2,0] = (mat[1,0]*(mat[2,1]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[2][0] = (mat[1,0]*(mat[2,1]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[2,3]*(mat[3,4]*mat[4,1] - mat[3,1]*mat[4,4]) +
                 mat[2,4]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1])) +
                 mat[1,1]*(mat[2,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -371,7 +381,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[2,1]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
                 mat[2,3]*(mat[3,1]*mat[4,0] - mat[3,0]*mat[4,1])))
 
-        out_inv[2,1] = -(mat[0,0]*(mat[2,1]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[2][1] = -(mat[0,0]*(mat[2,1]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[2,3]*(mat[3,4]*mat[4,1] - mat[3,1]*mat[4,4]) +
                 mat[2,4]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1])) +
                 mat[0,1]*(mat[2,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -384,7 +394,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[2,1]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
                 mat[2,3]*(mat[3,1]*mat[4,0] - mat[3,0]*mat[4,1])))
 
-        out_inv[2,2] = (mat[0,0]*(mat[1,1]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[2][2] = (mat[0,0]*(mat[1,1]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[1,3]*(mat[3,4]*mat[4,1] - mat[3,1]*mat[4,4]) +
                 mat[1,4]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1])) +
                 mat[0,1]*(mat[1,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -397,7 +407,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
                 mat[1,3]*(mat[3,1]*mat[4,0] - mat[3,0]*mat[4,1])))
 
-        out_inv[2,3] = -(mat[0,0]*(mat[1,1]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
+        tmp_inv[2][3] = -(mat[0,0]*(mat[1,1]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
                 mat[1,3]*(mat[2,4]*mat[4,1] - mat[2,1]*mat[4,4]) +
                 mat[1,4]*(mat[2,1]*mat[4,3] - mat[2,3]*mat[4,1])) +
                 mat[0,1]*(mat[1,0]*(mat[2,4]*mat[4,3] - mat[2,3]*mat[4,4]) +
@@ -410,7 +420,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[2,0]*mat[4,3] - mat[2,3]*mat[4,0]) +
                 mat[1,3]*(mat[2,1]*mat[4,0] - mat[2,0]*mat[4,1])))
 
-        out_inv[2,4] = (mat[0,0]*(mat[1,1]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
+        tmp_inv[2][4] = (mat[0,0]*(mat[1,1]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
                 mat[1,3]*(mat[2,4]*mat[3,1] - mat[2,1]*mat[3,4]) +
                 mat[1,4]*(mat[2,1]*mat[3,3] - mat[2,3]*mat[3,1])) +
                 mat[0,1]*(mat[1,0]*(mat[2,4]*mat[3,3] - mat[2,3]*mat[3,4]) +
@@ -423,7 +433,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[2,0]*mat[3,3] - mat[2,3]*mat[3,0]) +
                 mat[1,3]*(mat[2,1]*mat[3,0] - mat[2,0]*mat[3,1])))
 
-        out_inv[3,0] = -(mat[1,0]*(mat[2,1]*(mat[3,2]*mat[4,4] - mat[3,4]*mat[4,2]) +
+        tmp_inv[3][0] = -(mat[1,0]*(mat[2,1]*(mat[3,2]*mat[4,4] - mat[3,4]*mat[4,2]) +
                 mat[2,2]*(mat[3,4]*mat[4,1] - mat[3,1]*mat[4,4]) +
                 mat[2,4]*(mat[3,1]*mat[4,2] - mat[3,2]*mat[4,1])) +
                 mat[1,1]*(mat[2,0]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
@@ -436,7 +446,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[2,1]*(mat[3,0]*mat[4,2] - mat[3,2]*mat[4,0]) +
                 mat[2,2]*(mat[3,1]*mat[4,0] - mat[3,0]*mat[4,1])))
 
-        out_inv[3,1] = (mat[0,0]*(mat[2,1]*(mat[3,2]*mat[4,4] - mat[3,4]*mat[4,2]) +
+        tmp_inv[3][1] = (mat[0,0]*(mat[2,1]*(mat[3,2]*mat[4,4] - mat[3,4]*mat[4,2]) +
                 mat[2,2]*(mat[3,4]*mat[4,1] - mat[3,1]*mat[4,4]) +
                 mat[2,4]*(mat[3,1]*mat[4,2] - mat[3,2]*mat[4,1])) +
                 mat[0,1]*(mat[2,0]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
@@ -449,7 +459,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[2,1]*(mat[3,0]*mat[4,2] - mat[3,2]*mat[4,0]) +
                 mat[2,2]*(mat[3,1]*mat[4,0] - mat[3,0]*mat[4,1])))
 
-        out_inv[3,2] = -(mat[0,0]*(mat[1,1]*(mat[3,2]*mat[4,4] - mat[3,4]*mat[4,2]) +
+        tmp_inv[3][2] = -(mat[0,0]*(mat[1,1]*(mat[3,2]*mat[4,4] - mat[3,4]*mat[4,2]) +
                 mat[1,2]*(mat[3,4]*mat[4,1] - mat[3,1]*mat[4,4]) +
                 mat[1,4]*(mat[3,1]*mat[4,2] - mat[3,2]*mat[4,1])) +
                 mat[0,1]*(mat[1,0]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
@@ -462,7 +472,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[3,0]*mat[4,2] - mat[3,2]*mat[4,0]) +
                 mat[1,2]*(mat[3,1]*mat[4,0] - mat[3,0]*mat[4,1])))
 
-        out_inv[3,3] = (mat[0,0]*(mat[1,1]*(mat[2,2]*mat[4,4] - mat[2,4]*mat[4,2]) +
+        tmp_inv[3][3] = (mat[0,0]*(mat[1,1]*(mat[2,2]*mat[4,4] - mat[2,4]*mat[4,2]) +
                 mat[1,2]*(mat[2,4]*mat[4,1] - mat[2,1]*mat[4,4]) +
                 mat[1,4]*(mat[2,1]*mat[4,2] - mat[2,2]*mat[4,1])) +
                 mat[0,1]*(mat[1,0]*(mat[2,4]*mat[4,2] - mat[2,2]*mat[4,4]) +
@@ -475,7 +485,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[2,0]*mat[4,2] - mat[2,2]*mat[4,0]) +
                 mat[1,2]*(mat[2,1]*mat[4,0] - mat[2,0]*mat[4,1])))
 
-        out_inv[3,4] = -(mat[0,0]*(mat[1,1]*(mat[2,2]*mat[3,4] - mat[2,4]*mat[3,2]) +
+        tmp_inv[3][4] = -(mat[0,0]*(mat[1,1]*(mat[2,2]*mat[3,4] - mat[2,4]*mat[3,2]) +
                 mat[1,2]*(mat[2,4]*mat[3,1] - mat[2,1]*mat[3,4]) +
                 mat[1,4]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1])) +
                 mat[0,1]*(mat[1,0]*(mat[2,4]*mat[3,2] - mat[2,2]*mat[3,4]) +
@@ -488,7 +498,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) +
                 mat[1,2]*(mat[2,1]*mat[3,0] - mat[2,0]*mat[3,1])))
 
-        out_inv[4,0] = (mat[1,0]*(mat[2,1]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2]) +
+        tmp_inv[4][0] = (mat[1,0]*(mat[2,1]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2]) +
                 mat[2,2]*(mat[3,3]*mat[4,1] - mat[3,1]*mat[4,3]) +
                 mat[2,3]*(mat[3,1]*mat[4,2] - mat[3,2]*mat[4,1])) +
                 mat[1,1]*(mat[2,0]*(mat[3,3]*mat[4,2] - mat[3,2]*mat[4,3]) +
@@ -501,7 +511,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[2,1]*(mat[3,0]*mat[4,2] - mat[3,2]*mat[4,0]) +
                 mat[2,2]*(mat[3,1]*mat[4,0] - mat[3,0]*mat[4,1])))
 
-        out_inv[4,1] = -(mat[0,0]*(mat[2,1]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2]) +
+        tmp_inv[4][1] = -(mat[0,0]*(mat[2,1]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2]) +
                 mat[2,2]*(mat[3,3]*mat[4,1] - mat[3,1]*mat[4,3]) +
                 mat[2,3]*(mat[3,1]*mat[4,2] - mat[3,2]*mat[4,1])) +
                 mat[0,1]*(mat[2,0]*(mat[3,3]*mat[4,2] - mat[3,2]*mat[4,3]) +
@@ -514,7 +524,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[2,1]*(mat[3,0]*mat[4,2] - mat[3,2]*mat[4,0]) +
                 mat[2,2]*(mat[3,1]*mat[4,0] - mat[3,0]*mat[4,1])))
 
-        out_inv[4,2] = (mat[0,0]*(mat[1,1]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2]) +
+        tmp_inv[4][2] = (mat[0,0]*(mat[1,1]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2]) +
                 mat[1,2]*(mat[3,3]*mat[4,1] - mat[3,1]*mat[4,3]) +
                 mat[1,3]*(mat[3,1]*mat[4,2] - mat[3,2]*mat[4,1])) +
                 mat[0,1]*(mat[1,0]*(mat[3,3]*mat[4,2] - mat[3,2]*mat[4,3]) +
@@ -527,7 +537,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[3,0]*mat[4,2] - mat[3,2]*mat[4,0]) +
                 mat[1,2]*(mat[3,1]*mat[4,0] - mat[3,0]*mat[4,1])))
 
-        out_inv[4,3] = -(mat[0,0]*(mat[1,1]*(mat[2,2]*mat[4,3] - mat[2,3]*mat[4,2]) +
+        tmp_inv[4][3] = -(mat[0,0]*(mat[1,1]*(mat[2,2]*mat[4,3] - mat[2,3]*mat[4,2]) +
                 mat[1,2]*(mat[2,3]*mat[4,1] - mat[2,1]*mat[4,3]) +
                 mat[1,3]*(mat[2,1]*mat[4,2] - mat[2,2]*mat[4,1])) +
                 mat[0,1]*(mat[1,0]*(mat[2,3]*mat[4,2] - mat[2,2]*mat[4,3]) +
@@ -540,7 +550,7 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[2,0]*mat[4,2] - mat[2,2]*mat[4,0]) +
                 mat[1,2]*(mat[2,1]*mat[4,0] - mat[2,0]*mat[4,1])))
 
-        out_inv[4,4] = (mat[0,0]*(mat[1,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
+        tmp_inv[4][4] = (mat[0,0]*(mat[1,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
                 mat[1,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
                 mat[1,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1])) +
                 mat[0,1]*(mat[1,0]*(mat[2,3]*mat[3,2] - mat[2,2]*mat[3,3]) +
@@ -553,11 +563,11 @@ cdef void inverse(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) +
                 mat[1,2]*(mat[2,1]*mat[3,0] - mat[2,0]*mat[3,1])))
 
-        inv_det = 1.0/(mat[0,0]*out_inv[0,0] + mat[1,0]*out_inv[0,1] + mat[2,0]*out_inv[0,2] + mat[3,0]*out_inv[0,3] + mat[4,0]*out_inv[0,4])
+        inv_det = 1.0/(mat[0,0]*tmp_inv[0][0] + mat[1,0]*tmp_inv[0][1] + mat[2,0]*tmp_inv[0][2] + mat[3,0]*tmp_inv[0][3] + mat[4,0]*tmp_inv[0][4])
 
         for i in range(k):
             for j in range(k):
-                out_inv[i,j] *= inv_det
+                out_inv[i,j] = tmp_inv[i][j] * inv_det
     else:
         inverse_dgetr(mat, out_inv)
 
@@ -570,69 +580,95 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
     """
     cdef Py_ssize_t k = mat.shape[0], i, j
     cdef double inv_det
+    cdef double tmp_inv[5][5]
+    cdef double tmp_inv_vec[5]
+
     # TODO: Check out_inv is different pointer to mat.
     if k == 2:
         inv_det = 1.0 / (mat[0,0]*mat[1,1] - mat[0,1]*mat[1,0])
+
+        tmp_inv_vec[0] = mat[0,0]
         out_inv[0,0] = mat[1,1] * inv_det
         out_inv[0,1] = out_inv[1,0] = -mat[0,1] * inv_det
-        out_inv[1,1] = mat[0,0] * inv_det
+        out_inv[1,1] = tmp_inv_vec[0] * inv_det
     elif k == 3:
         inv_det = 1.0 / (mat[0,0]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) +
                          mat[0,1]*(mat[1,2]*mat[2,0] - mat[1,0]*mat[2,2]) +
                          mat[0,2]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
 
-        out_inv[0,0] = (mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) * inv_det
-        out_inv[0,1] = out_inv[1,0] =  -(mat[0,1]*mat[2,2] - mat[0,2]*mat[2,1]) * inv_det
-        out_inv[0,2] = out_inv[2,0] = (mat[0,1]*mat[1,2] - mat[0,2]*mat[1,1]) * inv_det
-        out_inv[1,1] = (mat[0,0]*mat[2,2] - mat[0,2]*mat[2,0]) * inv_det
-        out_inv[1,2] = out_inv[2,1] = -(mat[0,0]*mat[1,2] - mat[0,2]*mat[1,0]) * inv_det
-        out_inv[2,2] = (mat[0,0]*mat[1,1] - mat[0,1]*mat[1,0]) * inv_det
-    elif k == 4:
-        out_inv[0,0] = (mat[1,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
-                        mat[1,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
-                        mat[1,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) )
+        # print("inv_det: " + str(inv_det))
+        # print("Mat to inverse: " + str(np.asarray(mat)))
+        # print("Correct inverse: " + str(np.linalg.inv(mat)))
+        # print("Is same: " + str(&mat[0,0] == &out_inv[0,0]))
+        #
+        tmp_inv_vec[0] = mat[0,0]
+        tmp_inv_vec[1] = mat[1,1]
 
-        out_inv[0,1] = -(mat[0,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
-                        mat[0,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
-                        mat[0,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) )
+        out_inv[0,0] = (mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1])
+        out_inv[0,1] = -(mat[0,1]*mat[2,2] - mat[0,2]*mat[2,1])
+        out_inv[0,2] = (mat[1,0]*mat[1,2] - mat[0,2]*mat[1,1])
+        out_inv[1,1] = (tmp_inv_vec[0]*mat[2,2] - mat[2,0]*mat[2,0])
+        out_inv[1,2] = -(tmp_inv_vec[0]*mat[1,2] - mat[2,0]*mat[1,0])
+        out_inv[2,2] = (tmp_inv_vec[0]*tmp_inv_vec[1] - mat[1,0]*mat[1,0])
 
-        out_inv[0,2] = (mat[0,1]*(mat[1,2]*mat[3,3] - mat[1,3]*mat[3,2]) +
-                        mat[0,2]*(mat[1,3]*mat[3,1] - mat[1,1]*mat[3,3]) +
-                        mat[0,3]*(mat[1,1]*mat[3,2] - mat[1,2]*mat[3,1]) )
-
-        out_inv[0,3] = -(mat[0,1]*(mat[1,2]*mat[2,3] - mat[1,3]*mat[2,2]) +
-                        mat[0,2]*(mat[1,3]*mat[2,1] - mat[1,1]*mat[2,3]) +
-                        mat[0,3]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) )
-
-        out_inv[1,1] = (mat[0,0]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
-                        mat[0,2]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
-                        mat[0,3]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) )
-
-        out_inv[1,2] = -(mat[0,0]*(mat[1,2]*mat[3,3] - mat[1,3]*mat[3,2]) +
-                        mat[0,2]*(mat[1,3]*mat[3,0] - mat[1,0]*mat[3,3]) +
-                        mat[0,3]*(mat[1,0]*mat[3,2] - mat[1,2]*mat[3,0]) )
-
-        out_inv[1,3] = (mat[0,0]*(mat[1,2]*mat[2,3] - mat[1,3]*mat[2,2]) +
-                        mat[0,2]*(mat[1,3]*mat[2,0] - mat[1,0]*mat[2,3]) +
-                        mat[0,3]*(mat[1,0]*mat[2,2] - mat[1,2]*mat[2,0]) )
-
-        out_inv[2,2] = (mat[0,0]*(mat[1,1]*mat[3,3] - mat[1,3]*mat[3,1]) +
-                        mat[0,1]*(mat[1,3]*mat[3,0] - mat[1,0]*mat[3,3]) +
-                        mat[0,3]*(mat[1,0]*mat[3,1] - mat[1,1]*mat[3,0]) )
-
-        out_inv[2,3] = -(mat[0,0]*(mat[1,1]*mat[2,3] - mat[1,3]*mat[2,1]) +
-                         mat[0,1]*(mat[1,3]*mat[2,0] - mat[1,0]*mat[2,3]) +
-                         mat[0,3]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
-
-        out_inv[3,3] = (mat[0,0]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) +
-                        mat[0,1]*(mat[1,2]*mat[2,0] - mat[1,0]*mat[2,2]) +
-                        mat[0,2]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
-
-        inv_det = 1.0/(mat[0,0]*out_inv[0,0] + mat[1,0]*out_inv[0,1] + mat[2,0]*out_inv[0,2] + mat[3,0]*out_inv[0,3])
 
         for i in range(k):
             for j in range(i, k):
-                out_inv[i,j] *= inv_det
+                out_inv[i,j] = out_inv[i,j] * inv_det
+        # print("Partial out_inv: " + str(np.asarray(out_inv)))
+
+        out_inv[1,0] = out_inv[0,1]
+        out_inv[2,0] = out_inv[0,2]
+        out_inv[2,1] = out_inv[1,2]
+
+        # print("Inverse mat: " + str(np.asarray(out_inv)))
+
+    elif k == 4:
+        tmp_inv[0][0] = (mat[1,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
+                        mat[1,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
+                        mat[1,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) )
+
+        tmp_inv[0][1] = -(mat[0,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
+                        mat[0,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
+                        mat[0,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) )
+
+        tmp_inv[0][2] = (mat[0,1]*(mat[1,2]*mat[3,3] - mat[1,3]*mat[3,2]) +
+                        mat[0,2]*(mat[1,3]*mat[3,1] - mat[1,1]*mat[3,3]) +
+                        mat[0,3]*(mat[1,1]*mat[3,2] - mat[1,2]*mat[3,1]) )
+
+        tmp_inv[0][3] = -(mat[0,1]*(mat[1,2]*mat[2,3] - mat[1,3]*mat[2,2]) +
+                        mat[0,2]*(mat[1,3]*mat[2,1] - mat[1,1]*mat[2,3]) +
+                        mat[0,3]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) )
+
+        tmp_inv[1][1] = (mat[0,0]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
+                        mat[0,2]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
+                        mat[0,3]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) )
+
+        tmp_inv[1][2] = -(mat[0,0]*(mat[1,2]*mat[3,3] - mat[1,3]*mat[3,2]) +
+                        mat[0,2]*(mat[1,3]*mat[3,0] - mat[1,0]*mat[3,3]) +
+                        mat[0,3]*(mat[1,0]*mat[3,2] - mat[1,2]*mat[3,0]) )
+
+        tmp_inv[1][3] = (mat[0,0]*(mat[1,2]*mat[2,3] - mat[1,3]*mat[2,2]) +
+                        mat[0,2]*(mat[1,3]*mat[2,0] - mat[1,0]*mat[2,3]) +
+                        mat[0,3]*(mat[1,0]*mat[2,2] - mat[1,2]*mat[2,0]) )
+
+        tmp_inv[2][2] = (mat[0,0]*(mat[1,1]*mat[3,3] - mat[1,3]*mat[3,1]) +
+                        mat[0,1]*(mat[1,3]*mat[3,0] - mat[1,0]*mat[3,3]) +
+                        mat[0,3]*(mat[1,0]*mat[3,1] - mat[1,1]*mat[3,0]) )
+
+        tmp_inv[2][3] = -(mat[0,0]*(mat[1,1]*mat[2,3] - mat[1,3]*mat[2,1]) +
+                         mat[0,1]*(mat[1,3]*mat[2,0] - mat[1,0]*mat[2,3]) +
+                         mat[0,3]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
+
+        tmp_inv[3][3] = (mat[0,0]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) +
+                        mat[0,1]*(mat[1,2]*mat[2,0] - mat[1,0]*mat[2,2]) +
+                        mat[0,2]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
+
+        inv_det = 1.0/(mat[0,0]*tmp_inv[0][0] + mat[1,0]*tmp_inv[0][1] + mat[2,0]*tmp_inv[0][2] + mat[3,0]*tmp_inv[0][3])
+
+        for i in range(k):
+            for j in range(i, k):
+                out_inv[i,j] = tmp_inv[i][j] * inv_det
 
         out_inv[1,0] = out_inv[0,1]
         out_inv[2,0] = out_inv[0,2]
@@ -642,7 +678,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
         out_inv[3,2] = out_inv[2,3]
 
     elif k==5:
-        out_inv[0,0] = (mat[1,1]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[0][0] = (mat[1,1]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[2,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[2,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[1,2]*(mat[2,1]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -655,7 +691,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[2,2]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1]) +
                 mat[2,3]*(mat[3,2]*mat[4,1] - mat[3,1]*mat[4,2])))
 
-        out_inv[0,1] = -(mat[0,1]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[0][1] = -(mat[0,1]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[2,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[2,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[0,2]*(mat[2,1]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -668,7 +704,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[2,2]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1]) +
                 mat[2,3]*(mat[3,2]*mat[4,1] - mat[3,1]*mat[4,2])))
 
-        out_inv[0,2] = (mat[0,1]*(mat[1,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[0][2] = (mat[0,1]*(mat[1,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[1,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[1,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[0,2]*(mat[1,1]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -681,7 +717,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1]) +
                 mat[1,3]*(mat[3,2]*mat[4,1] - mat[3,1]*mat[4,2])))
 
-        out_inv[0,3] = -(mat[0,1]*(mat[1,2]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
+        tmp_inv[0][3] = -(mat[0,1]*(mat[1,2]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
                 mat[1,3]*(mat[2,4]*mat[4,2] - mat[2,2]*mat[4,4]) +
                 mat[1,4]*(mat[2,2]*mat[4,3] - mat[2,3]*mat[4,2])) +
                 mat[0,2]*(mat[1,1]*(mat[2,4]*mat[4,3] - mat[2,3]*mat[4,4]) +
@@ -694,7 +730,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[2,1]*mat[4,3] - mat[2,3]*mat[4,1]) +
                 mat[1,3]*(mat[2,2]*mat[4,1] - mat[2,1]*mat[4,2])))
 
-        out_inv[0,4] = (mat[0,1]*(mat[1,2]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
+        tmp_inv[0][4] = (mat[0,1]*(mat[1,2]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
                 mat[1,3]*(mat[2,4]*mat[3,2] - mat[2,2]*mat[3,4]) +
                 mat[1,4]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2])) +
                 mat[0,2]*(mat[1,1]*(mat[2,4]*mat[3,3] - mat[2,3]*mat[3,4]) +
@@ -707,7 +743,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[2,1]*mat[3,3] - mat[2,3]*mat[3,1]) +
                 mat[1,3]*(mat[2,2]*mat[3,1] - mat[2,1]*mat[3,2])))
 
-        out_inv[1,1] = (mat[0,0]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[1][1] = (mat[0,0]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[2,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[2,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[0,2]*(mat[2,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -720,7 +756,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[2,2]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
                 mat[2,3]*(mat[3,2]*mat[4,0] - mat[3,0]*mat[4,2])))
 
-        out_inv[1,2] = -(mat[0,0]*(mat[1,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[1][2] = -(mat[0,0]*(mat[1,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[1,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[1,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[0,2]*(mat[1,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -733,7 +769,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
                 mat[1,3]*(mat[3,2]*mat[4,0] - mat[3,0]*mat[4,2])))
 
-        out_inv[1,3] = (mat[0,0]*(mat[1,2]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
+        tmp_inv[1][3] = (mat[0,0]*(mat[1,2]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
                 mat[1,3]*(mat[2,4]*mat[4,2] - mat[2,2]*mat[4,4]) +
                 mat[1,4]*(mat[2,2]*mat[4,3] - mat[2,3]*mat[4,2])) +
                 mat[0,2]*(mat[1,0]*(mat[2,4]*mat[4,3] - mat[2,3]*mat[4,4]) +
@@ -746,7 +782,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[2,0]*mat[4,3] - mat[2,3]*mat[4,0]) +
                 mat[1,3]*(mat[2,2]*mat[4,0] - mat[2,0]*mat[4,2])))
 
-        out_inv[1,4] = -(mat[0,0]*(mat[1,2]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
+        tmp_inv[1][4] = -(mat[0,0]*(mat[1,2]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
                 mat[1,3]*(mat[2,4]*mat[3,2] - mat[2,2]*mat[3,4]) +
                 mat[1,4]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2])) +
                 mat[0,2]*(mat[1,0]*(mat[2,4]*mat[3,3] - mat[2,3]*mat[3,4]) +
@@ -759,7 +795,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[2,0]*mat[3,3] - mat[2,3]*mat[3,0]) +
                 mat[1,3]*(mat[2,2]*mat[3,0] - mat[2,0]*mat[3,2])))
 
-        out_inv[2,2] = (mat[0,0]*(mat[1,1]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[2][2] = (mat[0,0]*(mat[1,1]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[1,3]*(mat[3,4]*mat[4,1] - mat[3,1]*mat[4,4]) +
                 mat[1,4]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1])) +
                 mat[0,1]*(mat[1,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -772,7 +808,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
                 mat[1,3]*(mat[3,1]*mat[4,0] - mat[3,0]*mat[4,1])))
 
-        out_inv[2,3] = -(mat[0,0]*(mat[1,1]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
+        tmp_inv[2][3] = -(mat[0,0]*(mat[1,1]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
                 mat[1,3]*(mat[2,4]*mat[4,1] - mat[2,1]*mat[4,4]) +
                 mat[1,4]*(mat[2,1]*mat[4,3] - mat[2,3]*mat[4,1])) +
                 mat[0,1]*(mat[1,0]*(mat[2,4]*mat[4,3] - mat[2,3]*mat[4,4]) +
@@ -785,7 +821,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[2,0]*mat[4,3] - mat[2,3]*mat[4,0]) +
                 mat[1,3]*(mat[2,1]*mat[4,0] - mat[2,0]*mat[4,1])))
 
-        out_inv[2,4] = (mat[0,0]*(mat[1,1]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
+        tmp_inv[2][4] = (mat[0,0]*(mat[1,1]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
                 mat[1,3]*(mat[2,4]*mat[3,1] - mat[2,1]*mat[3,4]) +
                 mat[1,4]*(mat[2,1]*mat[3,3] - mat[2,3]*mat[3,1])) +
                 mat[0,1]*(mat[1,0]*(mat[2,4]*mat[3,3] - mat[2,3]*mat[3,4]) +
@@ -798,7 +834,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[2,0]*mat[3,3] - mat[2,3]*mat[3,0]) +
                 mat[1,3]*(mat[2,1]*mat[3,0] - mat[2,0]*mat[3,1])))
 
-        out_inv[3,3] = (mat[0,0]*(mat[1,1]*(mat[2,2]*mat[4,4] - mat[2,4]*mat[4,2]) +
+        tmp_inv[3][3] = (mat[0,0]*(mat[1,1]*(mat[2,2]*mat[4,4] - mat[2,4]*mat[4,2]) +
                 mat[1,2]*(mat[2,4]*mat[4,1] - mat[2,1]*mat[4,4]) +
                 mat[1,4]*(mat[2,1]*mat[4,2] - mat[2,2]*mat[4,1])) +
                 mat[0,1]*(mat[1,0]*(mat[2,4]*mat[4,2] - mat[2,2]*mat[4,4]) +
@@ -811,7 +847,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[2,0]*mat[4,2] - mat[2,2]*mat[4,0]) +
                 mat[1,2]*(mat[2,1]*mat[4,0] - mat[2,0]*mat[4,1])))
 
-        out_inv[3,4] = -(mat[0,0]*(mat[1,1]*(mat[2,2]*mat[3,4] - mat[2,4]*mat[3,2]) +
+        tmp_inv[3][4] = -(mat[0,0]*(mat[1,1]*(mat[2,2]*mat[3,4] - mat[2,4]*mat[3,2]) +
                 mat[1,2]*(mat[2,4]*mat[3,1] - mat[2,1]*mat[3,4]) +
                 mat[1,4]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1])) +
                 mat[0,1]*(mat[1,0]*(mat[2,4]*mat[3,2] - mat[2,2]*mat[3,4]) +
@@ -824,7 +860,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) +
                 mat[1,2]*(mat[2,1]*mat[3,0] - mat[2,0]*mat[3,1])))
 
-        out_inv[4,4] = (mat[0,0]*(mat[1,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
+        tmp_inv[4][4] = (mat[0,0]*(mat[1,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
                 mat[1,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
                 mat[1,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1])) +
                 mat[0,1]*(mat[1,0]*(mat[2,3]*mat[3,2] - mat[2,2]*mat[3,3]) +
@@ -837,11 +873,11 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,1]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) +
                 mat[1,2]*(mat[2,1]*mat[3,0] - mat[2,0]*mat[3,1])))
 
-        inv_det = 1.0/(mat[0,0]*out_inv[0,0] + mat[1,0]*out_inv[0,1] + mat[2,0]*out_inv[0,2] + mat[3,0]*out_inv[0,3] + mat[4,0]*out_inv[0,4])
+        inv_det = 1.0/(mat[0,0]*tmp_inv[0][0] + mat[1,0]*tmp_inv[0][1] + mat[2,0]*tmp_inv[0][2] + mat[3,0]*tmp_inv[0][3] + mat[4,0]*tmp_inv[0][4])
 
         for i in range(k):
             for j in range(i,k):
-                out_inv[i,j] *= inv_det
+                out_inv[i,j] = tmp_inv[i][j] * inv_det
 
         out_inv[1,0] = out_inv[0,1]
         out_inv[2,0] = out_inv[0,2]

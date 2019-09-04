@@ -39,3 +39,7 @@ nosetests.xml
 # Auto examples generated
 docs/auto_examples/*
 docs/examples/*
+
+
+*.c
+*.html

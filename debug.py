@@ -9,6 +9,8 @@ from pgmpy.estimators.BGeScorePy import BGeScore as BGeScorePy
 
 import timeit
 
+import pgmpy
+
 # Example data a -> c <- b
 a = np.random.normal(0, 1, 5000)
 b = np.random.normal(3.2, np.sqrt(1.8), 5000)
@@ -40,10 +42,13 @@ def to_bnlearn_str(graph):
 
 
 
-
 if __name__ == '__main__':
     bge = BGeScore(ecoli_data)
-    bge.local_score("asnA", ["aceB"])
+    print(bge.local_score("b1583", ["asnA"]))
+    print(bge.local_score("b1583", ["asnA", "atpD"]))
+    print(bge.local_score("b1583", ["asnA", "atpD", "b1963"]))
+    print(bge.local_score("b1583", ["asnA", "atpD", "b1963", "cspG"]))
+    print(bge.local_score("b1583", ["asnA", "atpD", "b1963", "cspG", "dnaJ", "dnaK"]))
 
     # bge.local_score("aceB", ["atpD", "b1583", "b1963", "cspG", "dnaG", "dnaJ", "dnaK", "eutG", "fixC", "flgD"])
     # hc_ecoli = CachedHillClimbing(ecoli_data, scoring_method=BGeScore(ecoli_data))
