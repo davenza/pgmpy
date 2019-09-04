@@ -94,6 +94,7 @@ class BGeScore(StructureScore):
         """
 
         node_data = self.data[[variable] + parents].dropna()
+        # TODO: Implement non-uniform graph priors.
         if not parents:
             return _local_score_noparents(node_data[variable].values, self.iss, self.phi_coef)
         else:
