@@ -580,95 +580,91 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
     """
     cdef Py_ssize_t k = mat.shape[0], i, j
     cdef double inv_det
-    cdef double tmp_inv[5][5]
-    cdef double tmp_inv_vec[5]
+    cdef double tmp_inv[4]
 
     # TODO: Check out_inv is different pointer to mat.
     if k == 2:
         inv_det = 1.0 / (mat[0,0]*mat[1,1] - mat[0,1]*mat[1,0])
 
-        tmp_inv_vec[0] = mat[0,0]
+        tmp_inv[0] = mat[0,0]
+
         out_inv[0,0] = mat[1,1] * inv_det
         out_inv[0,1] = out_inv[1,0] = -mat[0,1] * inv_det
-        out_inv[1,1] = tmp_inv_vec[0] * inv_det
+        out_inv[1,1] = tmp_inv[0] * inv_det
+
     elif k == 3:
         inv_det = 1.0 / (mat[0,0]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) +
                          mat[0,1]*(mat[1,2]*mat[2,0] - mat[1,0]*mat[2,2]) +
                          mat[0,2]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
 
-        # print("inv_det: " + str(inv_det))
-        # print("Mat to inverse: " + str(np.asarray(mat)))
-        # print("Correct inverse: " + str(np.linalg.inv(mat)))
-        # print("Is same: " + str(&mat[0,0] == &out_inv[0,0]))
-        #
-        tmp_inv_vec[0] = mat[0,0]
-        tmp_inv_vec[1] = mat[1,1]
+        tmp_inv[0] = mat[0,0]
+        tmp_inv[1] = mat[1,1]
 
         out_inv[0,0] = (mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1])
         out_inv[0,1] = -(mat[0,1]*mat[2,2] - mat[0,2]*mat[2,1])
         out_inv[0,2] = (mat[1,0]*mat[1,2] - mat[0,2]*mat[1,1])
-        out_inv[1,1] = (tmp_inv_vec[0]*mat[2,2] - mat[2,0]*mat[2,0])
-        out_inv[1,2] = -(tmp_inv_vec[0]*mat[1,2] - mat[2,0]*mat[1,0])
-        out_inv[2,2] = (tmp_inv_vec[0]*tmp_inv_vec[1] - mat[1,0]*mat[1,0])
-
+        out_inv[1,1] = (tmp_inv[0]*mat[2,2] - mat[2,0]*mat[2,0])
+        out_inv[1,2] = -(tmp_inv[0]*mat[1,2] - mat[2,0]*mat[1,0])
+        out_inv[2,2] = (tmp_inv[0]*tmp_inv[1] - mat[1,0]*mat[1,0])
 
         for i in range(k):
             for j in range(i, k):
                 out_inv[i,j] = out_inv[i,j] * inv_det
-        # print("Partial out_inv: " + str(np.asarray(out_inv)))
 
         out_inv[1,0] = out_inv[0,1]
         out_inv[2,0] = out_inv[0,2]
         out_inv[2,1] = out_inv[1,2]
 
-        # print("Inverse mat: " + str(np.asarray(out_inv)))
-
     elif k == 4:
-        tmp_inv[0][0] = (mat[1,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
+        tmp_inv[0] = mat[0,0]
+        tmp_inv[1] = mat[1,1]
+        tmp_inv[2] = mat[2,2]
+
+        out_inv[0,0] = (mat[1,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
                         mat[1,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
                         mat[1,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) )
 
-        tmp_inv[0][1] = -(mat[0,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
+        out_inv[0,1] = -(mat[0,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
                         mat[0,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
                         mat[0,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1]) )
 
-        tmp_inv[0][2] = (mat[0,1]*(mat[1,2]*mat[3,3] - mat[1,3]*mat[3,2]) +
+        out_inv[0,2] = (mat[1,0]*(mat[1,2]*mat[3,3] - mat[1,3]*mat[3,2]) +
                         mat[0,2]*(mat[1,3]*mat[3,1] - mat[1,1]*mat[3,3]) +
                         mat[0,3]*(mat[1,1]*mat[3,2] - mat[1,2]*mat[3,1]) )
 
-        tmp_inv[0][3] = -(mat[0,1]*(mat[1,2]*mat[2,3] - mat[1,3]*mat[2,2]) +
-                        mat[0,2]*(mat[1,3]*mat[2,1] - mat[1,1]*mat[2,3]) +
+        out_inv[0,3] = -(mat[1,0]*(mat[1,2]*mat[2,3] - mat[1,3]*mat[2,2]) +
+                        mat[2,0]*(mat[1,3]*mat[2,1] - mat[1,1]*mat[2,3]) +
                         mat[0,3]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) )
 
-        tmp_inv[1][1] = (mat[0,0]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
-                        mat[0,2]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
-                        mat[0,3]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) )
+        out_inv[1,1] = (tmp_inv[0]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
+                        mat[2,0]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
+                        mat[3,0]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) )
 
-        tmp_inv[1][2] = -(mat[0,0]*(mat[1,2]*mat[3,3] - mat[1,3]*mat[3,2]) +
-                        mat[0,2]*(mat[1,3]*mat[3,0] - mat[1,0]*mat[3,3]) +
-                        mat[0,3]*(mat[1,0]*mat[3,2] - mat[1,2]*mat[3,0]) )
+        out_inv[1,2] = -(tmp_inv[0]*(mat[1,2]*mat[3,3] - mat[1,3]*mat[3,2]) +
+                        mat[2,0]*(mat[1,3]*mat[3,0] - mat[1,0]*mat[3,3]) +
+                        mat[3,0]*(mat[1,0]*mat[3,2] - mat[1,2]*mat[3,0]) )
 
-        tmp_inv[1][3] = (mat[0,0]*(mat[1,2]*mat[2,3] - mat[1,3]*mat[2,2]) +
-                        mat[0,2]*(mat[1,3]*mat[2,0] - mat[1,0]*mat[2,3]) +
-                        mat[0,3]*(mat[1,0]*mat[2,2] - mat[1,2]*mat[2,0]) )
+        out_inv[1,3] = (tmp_inv[0]*(mat[2,1]*mat[2,3] - mat[1,3]*mat[2,2]) +
+                        mat[2,0]*(mat[1,3]*mat[2,0] - mat[1,0]*mat[2,3]) +
+                        mat[3,0]*(mat[1,0]*mat[2,2] - mat[2,1]*mat[2,0]) )
 
-        tmp_inv[2][2] = (mat[0,0]*(mat[1,1]*mat[3,3] - mat[1,3]*mat[3,1]) +
-                        mat[0,1]*(mat[1,3]*mat[3,0] - mat[1,0]*mat[3,3]) +
-                        mat[0,3]*(mat[1,0]*mat[3,1] - mat[1,1]*mat[3,0]) )
+        out_inv[2,2] = (tmp_inv[0]*(tmp_inv[1]*mat[3,3] - mat[3,1]*mat[3,1]) +
+                        mat[1,0]*(mat[3,1]*mat[3,0] - mat[1,0]*mat[3,3]) +
+                        mat[3,0]*(mat[1,0]*mat[3,1] - tmp_inv[1]*mat[3,0]) )
 
-        tmp_inv[2][3] = -(mat[0,0]*(mat[1,1]*mat[2,3] - mat[1,3]*mat[2,1]) +
-                         mat[0,1]*(mat[1,3]*mat[2,0] - mat[1,0]*mat[2,3]) +
-                         mat[0,3]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
+        out_inv[2,3] = -(tmp_inv[0]*(tmp_inv[1]*mat[2,3] - mat[3,1]*mat[2,1]) +
+                         mat[1,0]*(mat[3,1]*mat[2,0] - mat[1,0]*mat[2,3]) +
+                         mat[3,0]*(mat[1,0]*mat[2,1] - tmp_inv[1]*mat[2,0]) )
 
-        tmp_inv[3][3] = (mat[0,0]*(mat[1,1]*mat[2,2] - mat[1,2]*mat[2,1]) +
-                        mat[0,1]*(mat[1,2]*mat[2,0] - mat[1,0]*mat[2,2]) +
-                        mat[0,2]*(mat[1,0]*mat[2,1] - mat[1,1]*mat[2,0]) )
+        out_inv[3,3] = (tmp_inv[0]*(tmp_inv[1]*tmp_inv[2] - mat[2,1]*mat[2,1]) +
+                        mat[1,0]*(mat[2,1]*mat[2,0] - mat[1,0]*tmp_inv[2]) +
+                        mat[2,0]*(mat[1,0]*mat[2,1] - tmp_inv[1]*mat[2,0]) )
 
-        inv_det = 1.0/(mat[0,0]*tmp_inv[0][0] + mat[1,0]*tmp_inv[0][1] + mat[2,0]*tmp_inv[0][2] + mat[3,0]*tmp_inv[0][3])
+        inv_det = 1.0/(tmp_inv[0]*out_inv[0,0] + mat[1,0]*out_inv[0,1] + mat[2,0]*out_inv[0,2] + mat[3,0]*out_inv[0,3])
 
         for i in range(k):
             for j in range(i, k):
-                out_inv[i,j] = tmp_inv[i][j] * inv_det
+                out_inv[i,j] = out_inv[i,j] * inv_det
 
         out_inv[1,0] = out_inv[0,1]
         out_inv[2,0] = out_inv[0,2]
@@ -678,7 +674,12 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
         out_inv[3,2] = out_inv[2,3]
 
     elif k==5:
-        tmp_inv[0][0] = (mat[1,1]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        tmp_inv[0] = mat[0,0]
+        tmp_inv[1] = mat[1,1]
+        tmp_inv[2] = mat[2,2]
+        tmp_inv[3] = mat[3,3]
+
+        out_inv[0,0] = (mat[1,1]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[2,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[2,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[1,2]*(mat[2,1]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -691,7 +692,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[2,2]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1]) +
                 mat[2,3]*(mat[3,2]*mat[4,1] - mat[3,1]*mat[4,2])))
 
-        tmp_inv[0][1] = -(mat[0,1]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        out_inv[0,1] = -(mat[0,1]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[2,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[2,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[0,2]*(mat[2,1]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -704,7 +705,7 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[2,2]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1]) +
                 mat[2,3]*(mat[3,2]*mat[4,1] - mat[3,1]*mat[4,2])))
 
-        tmp_inv[0][2] = (mat[0,1]*(mat[1,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        out_inv[0,2] = (mat[1,0]*(mat[1,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[1,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[1,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
                 mat[0,2]*(mat[1,1]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
@@ -717,10 +718,10 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1]) +
                 mat[1,3]*(mat[3,2]*mat[4,1] - mat[3,1]*mat[4,2])))
 
-        tmp_inv[0][3] = -(mat[0,1]*(mat[1,2]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
+        out_inv[0,3] = -(mat[1,0]*(mat[1,2]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
                 mat[1,3]*(mat[2,4]*mat[4,2] - mat[2,2]*mat[4,4]) +
                 mat[1,4]*(mat[2,2]*mat[4,3] - mat[2,3]*mat[4,2])) +
-                mat[0,2]*(mat[1,1]*(mat[2,4]*mat[4,3] - mat[2,3]*mat[4,4]) +
+                mat[2,0]*(mat[1,1]*(mat[2,4]*mat[4,3] - mat[2,3]*mat[4,4]) +
                 mat[1,3]*(mat[2,1]*mat[4,4] - mat[2,4]*mat[4,1]) +
                 mat[1,4]*(mat[2,3]*mat[4,1] - mat[2,1]*mat[4,3])) +
                 mat[0,3]*(mat[1,1]*(mat[2,2]*mat[4,4] - mat[2,4]*mat[4,2]) +
@@ -730,154 +731,154 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
                 mat[1,2]*(mat[2,1]*mat[4,3] - mat[2,3]*mat[4,1]) +
                 mat[1,3]*(mat[2,2]*mat[4,1] - mat[2,1]*mat[4,2])))
 
-        tmp_inv[0][4] = (mat[0,1]*(mat[1,2]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
+        out_inv[0,4] = (mat[1,0]*(mat[1,2]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
                 mat[1,3]*(mat[2,4]*mat[3,2] - mat[2,2]*mat[3,4]) +
                 mat[1,4]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2])) +
-                mat[0,2]*(mat[1,1]*(mat[2,4]*mat[3,3] - mat[2,3]*mat[3,4]) +
+                mat[2,0]*(mat[1,1]*(mat[2,4]*mat[3,3] - mat[2,3]*mat[3,4]) +
                 mat[1,3]*(mat[2,1]*mat[3,4] - mat[2,4]*mat[3,1]) +
                 mat[1,4]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3])) +
-                mat[0,3]*(mat[1,1]*(mat[2,2]*mat[3,4] - mat[2,4]*mat[3,2]) +
+                mat[3,0]*(mat[1,1]*(mat[2,2]*mat[3,4] - mat[2,4]*mat[3,2]) +
                 mat[1,2]*(mat[2,4]*mat[3,1] - mat[2,1]*mat[3,4]) +
                 mat[1,4]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1])) +
                 mat[0,4]*(mat[1,1]*(mat[2,3]*mat[3,2] - mat[2,2]*mat[3,3]) +
                 mat[1,2]*(mat[2,1]*mat[3,3] - mat[2,3]*mat[3,1]) +
                 mat[1,3]*(mat[2,2]*mat[3,1] - mat[2,1]*mat[3,2])))
 
-        tmp_inv[1][1] = (mat[0,0]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        out_inv[1,1] = (tmp_inv[0]*(mat[2,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[2,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[2,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
-                mat[0,2]*(mat[2,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
+                mat[2,0]*(mat[2,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
                 mat[2,3]*(mat[3,0]*mat[4,4] - mat[3,4]*mat[4,0]) +
                 mat[2,4]*(mat[3,3]*mat[4,0] - mat[3,0]*mat[4,3])) +
-                mat[0,3]*(mat[2,0]*(mat[3,2]*mat[4,4] - mat[3,4]*mat[4,2]) +
+                mat[3,0]*(mat[2,0]*(mat[3,2]*mat[4,4] - mat[3,4]*mat[4,2]) +
                 mat[2,2]*(mat[3,4]*mat[4,0] - mat[3,0]*mat[4,4]) +
                 mat[2,4]*(mat[3,0]*mat[4,2] - mat[3,2]*mat[4,0])) +
-                mat[0,4]*(mat[2,0]*(mat[3,3]*mat[4,2] - mat[3,2]*mat[4,3]) +
+                mat[4,0]*(mat[2,0]*(mat[3,3]*mat[4,2] - mat[3,2]*mat[4,3]) +
                 mat[2,2]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
                 mat[2,3]*(mat[3,2]*mat[4,0] - mat[3,0]*mat[4,2])))
 
-        tmp_inv[1][2] = -(mat[0,0]*(mat[1,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+        out_inv[1,2] = -(tmp_inv[0]*(mat[1,2]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
                 mat[1,3]*(mat[3,4]*mat[4,2] - mat[3,2]*mat[4,4]) +
                 mat[1,4]*(mat[3,2]*mat[4,3] - mat[3,3]*mat[4,2])) +
-                mat[0,2]*(mat[1,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
+                mat[2,0]*(mat[1,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
                 mat[1,3]*(mat[3,0]*mat[4,4] - mat[3,4]*mat[4,0]) +
                 mat[1,4]*(mat[3,3]*mat[4,0] - mat[3,0]*mat[4,3])) +
-                mat[0,3]*(mat[1,0]*(mat[3,2]*mat[4,4] - mat[3,4]*mat[4,2]) +
+                mat[3,0]*(mat[1,0]*(mat[3,2]*mat[4,4] - mat[3,4]*mat[4,2]) +
                 mat[1,2]*(mat[3,4]*mat[4,0] - mat[3,0]*mat[4,4]) +
                 mat[1,4]*(mat[3,0]*mat[4,2] - mat[3,2]*mat[4,0])) +
-                mat[0,4]*(mat[1,0]*(mat[3,3]*mat[4,2] - mat[3,2]*mat[4,3]) +
+                mat[4,0]*(mat[1,0]*(mat[3,3]*mat[4,2] - mat[3,2]*mat[4,3]) +
                 mat[1,2]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
                 mat[1,3]*(mat[3,2]*mat[4,0] - mat[3,0]*mat[4,2])))
 
-        tmp_inv[1][3] = (mat[0,0]*(mat[1,2]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
+        out_inv[1,3] = (tmp_inv[0]*(mat[2,1]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
                 mat[1,3]*(mat[2,4]*mat[4,2] - mat[2,2]*mat[4,4]) +
                 mat[1,4]*(mat[2,2]*mat[4,3] - mat[2,3]*mat[4,2])) +
-                mat[0,2]*(mat[1,0]*(mat[2,4]*mat[4,3] - mat[2,3]*mat[4,4]) +
+                mat[2,0]*(mat[1,0]*(mat[2,4]*mat[4,3] - mat[2,3]*mat[4,4]) +
                 mat[1,3]*(mat[2,0]*mat[4,4] - mat[2,4]*mat[4,0]) +
                 mat[1,4]*(mat[2,3]*mat[4,0] - mat[2,0]*mat[4,3])) +
-                mat[0,3]*(mat[1,0]*(mat[2,2]*mat[4,4] - mat[2,4]*mat[4,2]) +
-                mat[1,2]*(mat[2,4]*mat[4,0] - mat[2,0]*mat[4,4]) +
+                mat[3,0]*(mat[1,0]*(mat[2,2]*mat[4,4] - mat[2,4]*mat[4,2]) +
+                mat[2,1]*(mat[2,4]*mat[4,0] - mat[2,0]*mat[4,4]) +
                 mat[1,4]*(mat[2,0]*mat[4,2] - mat[2,2]*mat[4,0])) +
-                mat[0,4]*(mat[1,0]*(mat[2,3]*mat[4,2] - mat[2,2]*mat[4,3]) +
-                mat[1,2]*(mat[2,0]*mat[4,3] - mat[2,3]*mat[4,0]) +
+                mat[4,0]*(mat[1,0]*(mat[2,3]*mat[4,2] - mat[2,2]*mat[4,3]) +
+                mat[2,1]*(mat[2,0]*mat[4,3] - mat[2,3]*mat[4,0]) +
                 mat[1,3]*(mat[2,2]*mat[4,0] - mat[2,0]*mat[4,2])))
 
-        tmp_inv[1][4] = -(mat[0,0]*(mat[1,2]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
-                mat[1,3]*(mat[2,4]*mat[3,2] - mat[2,2]*mat[3,4]) +
+        out_inv[1,4] = -(tmp_inv[0]*(mat[2,1]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
+                mat[3,1]*(mat[2,4]*mat[3,2] - mat[2,2]*mat[3,4]) +
                 mat[1,4]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2])) +
-                mat[0,2]*(mat[1,0]*(mat[2,4]*mat[3,3] - mat[2,3]*mat[3,4]) +
-                mat[1,3]*(mat[2,0]*mat[3,4] - mat[2,4]*mat[3,0]) +
+                mat[2,0]*(mat[1,0]*(mat[2,4]*mat[3,3] - mat[2,3]*mat[3,4]) +
+                mat[3,1]*(mat[2,0]*mat[3,4] - mat[2,4]*mat[3,0]) +
                 mat[1,4]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3])) +
-                mat[0,3]*(mat[1,0]*(mat[2,2]*mat[3,4] - mat[2,4]*mat[3,2]) +
-                mat[1,2]*(mat[2,4]*mat[3,0] - mat[2,0]*mat[3,4]) +
+                mat[3,0]*(mat[1,0]*(mat[2,2]*mat[3,4] - mat[2,4]*mat[3,2]) +
+                mat[2,1]*(mat[2,4]*mat[3,0] - mat[2,0]*mat[3,4]) +
                 mat[1,4]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0])) +
-                mat[0,4]*(mat[1,0]*(mat[2,3]*mat[3,2] - mat[2,2]*mat[3,3]) +
-                mat[1,2]*(mat[2,0]*mat[3,3] - mat[2,3]*mat[3,0]) +
-                mat[1,3]*(mat[2,2]*mat[3,0] - mat[2,0]*mat[3,2])))
+                mat[4,0]*(mat[1,0]*(mat[2,3]*mat[3,2] - mat[2,2]*mat[3,3]) +
+                mat[2,1]*(mat[2,0]*mat[3,3] - mat[2,3]*mat[3,0]) +
+                mat[3,1]*(mat[2,2]*mat[3,0] - mat[2,0]*mat[3,2])))
 
-        tmp_inv[2][2] = (mat[0,0]*(mat[1,1]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
-                mat[1,3]*(mat[3,4]*mat[4,1] - mat[3,1]*mat[4,4]) +
-                mat[1,4]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1])) +
-                mat[0,1]*(mat[1,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
-                mat[1,3]*(mat[3,0]*mat[4,4] - mat[3,4]*mat[4,0]) +
-                mat[1,4]*(mat[3,3]*mat[4,0] - mat[3,0]*mat[4,3])) +
-                mat[0,3]*(mat[1,0]*(mat[3,1]*mat[4,4] - mat[3,4]*mat[4,1]) +
-                mat[1,1]*(mat[3,4]*mat[4,0] - mat[3,0]*mat[4,4]) +
-                mat[1,4]*(mat[3,0]*mat[4,1] - mat[3,1]*mat[4,0])) +
-                mat[0,4]*(mat[1,0]*(mat[3,3]*mat[4,1] - mat[3,1]*mat[4,3]) +
-                mat[1,1]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
-                mat[1,3]*(mat[3,1]*mat[4,0] - mat[3,0]*mat[4,1])))
+        out_inv[2,2] = (tmp_inv[0]*(tmp_inv[1]*(mat[3,3]*mat[4,4] - mat[3,4]*mat[4,3]) +
+                mat[3,1]*(mat[3,4]*mat[4,1] - mat[3,1]*mat[4,4]) +
+                mat[4,1]*(mat[3,1]*mat[4,3] - mat[3,3]*mat[4,1])) +
+                mat[1,0]*(mat[1,0]*(mat[3,4]*mat[4,3] - mat[3,3]*mat[4,4]) +
+                mat[3,1]*(mat[3,0]*mat[4,4] - mat[3,4]*mat[4,0]) +
+                mat[4,1]*(mat[3,3]*mat[4,0] - mat[3,0]*mat[4,3])) +
+                mat[3,0]*(mat[1,0]*(mat[3,1]*mat[4,4] - mat[3,4]*mat[4,1]) +
+                tmp_inv[1]*(mat[3,4]*mat[4,0] - mat[3,0]*mat[4,4]) +
+                mat[4,1]*(mat[3,0]*mat[4,1] - mat[3,1]*mat[4,0])) +
+                mat[4,0]*(mat[1,0]*(mat[3,3]*mat[4,1] - mat[3,1]*mat[4,3]) +
+                tmp_inv[1]*(mat[3,0]*mat[4,3] - mat[3,3]*mat[4,0]) +
+                mat[3,1]*(mat[3,1]*mat[4,0] - mat[3,0]*mat[4,1])))
 
-        tmp_inv[2][3] = -(mat[0,0]*(mat[1,1]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
-                mat[1,3]*(mat[2,4]*mat[4,1] - mat[2,1]*mat[4,4]) +
-                mat[1,4]*(mat[2,1]*mat[4,3] - mat[2,3]*mat[4,1])) +
-                mat[0,1]*(mat[1,0]*(mat[2,4]*mat[4,3] - mat[2,3]*mat[4,4]) +
-                mat[1,3]*(mat[2,0]*mat[4,4] - mat[2,4]*mat[4,0]) +
-                mat[1,4]*(mat[2,3]*mat[4,0] - mat[2,0]*mat[4,3])) +
-                mat[0,3]*(mat[1,0]*(mat[2,1]*mat[4,4] - mat[2,4]*mat[4,1]) +
-                mat[1,1]*(mat[2,4]*mat[4,0] - mat[2,0]*mat[4,4]) +
-                mat[1,4]*(mat[2,0]*mat[4,1] - mat[2,1]*mat[4,0])) +
-                mat[0,4]*(mat[1,0]*(mat[2,3]*mat[4,1] - mat[2,1]*mat[4,3]) +
-                mat[1,1]*(mat[2,0]*mat[4,3] - mat[2,3]*mat[4,0]) +
-                mat[1,3]*(mat[2,1]*mat[4,0] - mat[2,0]*mat[4,1])))
+        out_inv[2,3] = -(tmp_inv[0]*(tmp_inv[1]*(mat[2,3]*mat[4,4] - mat[2,4]*mat[4,3]) +
+                mat[3,1]*(mat[2,4]*mat[4,1] - mat[2,1]*mat[4,4]) +
+                mat[4,1]*(mat[2,1]*mat[4,3] - mat[2,3]*mat[4,1])) +
+                mat[1,0]*(mat[1,0]*(mat[2,4]*mat[4,3] - mat[2,3]*mat[4,4]) +
+                mat[3,1]*(mat[2,0]*mat[4,4] - mat[2,4]*mat[4,0]) +
+                mat[4,1]*(mat[2,3]*mat[4,0] - mat[2,0]*mat[4,3])) +
+                mat[3,0]*(mat[1,0]*(mat[2,1]*mat[4,4] - mat[2,4]*mat[4,1]) +
+                tmp_inv[1]*(mat[2,4]*mat[4,0] - mat[2,0]*mat[4,4]) +
+                mat[4,1]*(mat[2,0]*mat[4,1] - mat[2,1]*mat[4,0])) +
+                mat[4,0]*(mat[1,0]*(mat[2,3]*mat[4,1] - mat[2,1]*mat[4,3]) +
+                tmp_inv[1]*(mat[2,0]*mat[4,3] - mat[2,3]*mat[4,0]) +
+                mat[3,1]*(mat[2,1]*mat[4,0] - mat[2,0]*mat[4,1])))
 
-        tmp_inv[2][4] = (mat[0,0]*(mat[1,1]*(mat[2,3]*mat[3,4] - mat[2,4]*mat[3,3]) +
-                mat[1,3]*(mat[2,4]*mat[3,1] - mat[2,1]*mat[3,4]) +
-                mat[1,4]*(mat[2,1]*mat[3,3] - mat[2,3]*mat[3,1])) +
-                mat[0,1]*(mat[1,0]*(mat[2,4]*mat[3,3] - mat[2,3]*mat[3,4]) +
-                mat[1,3]*(mat[2,0]*mat[3,4] - mat[2,4]*mat[3,0]) +
-                mat[1,4]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3])) +
-                mat[0,3]*(mat[1,0]*(mat[2,1]*mat[3,4] - mat[2,4]*mat[3,1]) +
-                mat[1,1]*(mat[2,4]*mat[3,0] - mat[2,0]*mat[3,4]) +
-                mat[1,4]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0])) +
-                mat[0,4]*(mat[1,0]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
-                mat[1,1]*(mat[2,0]*mat[3,3] - mat[2,3]*mat[3,0]) +
-                mat[1,3]*(mat[2,1]*mat[3,0] - mat[2,0]*mat[3,1])))
+        out_inv[2,4] = (tmp_inv[0]*(tmp_inv[1]*(mat[3,2]*mat[3,4] - mat[2,4]*mat[3,3]) +
+                mat[3,1]*(mat[2,4]*mat[3,1] - mat[2,1]*mat[3,4]) +
+                mat[4,1]*(mat[2,1]*mat[3,3] - mat[3,2]*mat[3,1])) +
+                mat[1,0]*(mat[1,0]*(mat[2,4]*mat[3,3] - mat[3,2]*mat[3,4]) +
+                mat[3,1]*(mat[2,0]*mat[3,4] - mat[2,4]*mat[3,0]) +
+                mat[4,1]*(mat[3,2]*mat[3,0] - mat[2,0]*mat[3,3])) +
+                mat[3,0]*(mat[1,0]*(mat[2,1]*mat[3,4] - mat[2,4]*mat[3,1]) +
+                tmp_inv[1]*(mat[2,4]*mat[3,0] - mat[2,0]*mat[3,4]) +
+                mat[4,1]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0])) +
+                mat[4,0]*(mat[1,0]*(mat[3,2]*mat[3,1] - mat[2,1]*mat[3,3]) +
+                tmp_inv[1]*(mat[2,0]*mat[3,3] - mat[3,2]*mat[3,0]) +
+                mat[3,1]*(mat[2,1]*mat[3,0] - mat[2,0]*mat[3,1])))
 
-        tmp_inv[3][3] = (mat[0,0]*(mat[1,1]*(mat[2,2]*mat[4,4] - mat[2,4]*mat[4,2]) +
-                mat[1,2]*(mat[2,4]*mat[4,1] - mat[2,1]*mat[4,4]) +
-                mat[1,4]*(mat[2,1]*mat[4,2] - mat[2,2]*mat[4,1])) +
-                mat[0,1]*(mat[1,0]*(mat[2,4]*mat[4,2] - mat[2,2]*mat[4,4]) +
-                mat[1,2]*(mat[2,0]*mat[4,4] - mat[2,4]*mat[4,0]) +
-                mat[1,4]*(mat[2,2]*mat[4,0] - mat[2,0]*mat[4,2])) +
-                mat[0,2]*(mat[1,0]*(mat[2,1]*mat[4,4] - mat[2,4]*mat[4,1]) +
-                mat[1,1]*(mat[2,4]*mat[4,0] - mat[2,0]*mat[4,4]) +
-                mat[1,4]*(mat[2,0]*mat[4,1] - mat[2,1]*mat[4,0])) +
-                mat[0,4]*(mat[1,0]*(mat[2,2]*mat[4,1] - mat[2,1]*mat[4,2]) +
-                mat[1,1]*(mat[2,0]*mat[4,2] - mat[2,2]*mat[4,0]) +
-                mat[1,2]*(mat[2,1]*mat[4,0] - mat[2,0]*mat[4,1])))
+        out_inv[3,3] = (tmp_inv[0]*(tmp_inv[1]*(tmp_inv[2]*mat[4,4] - mat[4,2]*mat[4,2]) +
+                mat[2,1]*(mat[4,2]*mat[4,1] - mat[2,1]*mat[4,4]) +
+                mat[4,1]*(mat[2,1]*mat[4,2] - tmp_inv[2]*mat[4,1])) +
+                mat[1,0]*(mat[1,0]*(mat[4,2]*mat[4,2] - tmp_inv[2]*mat[4,4]) +
+                mat[2,1]*(mat[2,0]*mat[4,4] - mat[4,2]*mat[4,0]) +
+                mat[4,1]*(tmp_inv[2]*mat[4,0] - mat[2,0]*mat[4,2])) +
+                mat[2,0]*(mat[1,0]*(mat[2,1]*mat[4,4] - mat[4,2]*mat[4,1]) +
+                tmp_inv[1]*(mat[4,2]*mat[4,0] - mat[2,0]*mat[4,4]) +
+                mat[4,1]*(mat[2,0]*mat[4,1] - mat[2,1]*mat[4,0])) +
+                mat[4,0]*(mat[1,0]*(tmp_inv[2]*mat[4,1] - mat[2,1]*mat[4,2]) +
+                tmp_inv[1]*(mat[2,0]*mat[4,2] - tmp_inv[2]*mat[4,0]) +
+                mat[2,1]*(mat[2,1]*mat[4,0] - mat[2,0]*mat[4,1])))
 
-        tmp_inv[3][4] = -(mat[0,0]*(mat[1,1]*(mat[2,2]*mat[3,4] - mat[2,4]*mat[3,2]) +
-                mat[1,2]*(mat[2,4]*mat[3,1] - mat[2,1]*mat[3,4]) +
-                mat[1,4]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1])) +
-                mat[0,1]*(mat[1,0]*(mat[2,4]*mat[3,2] - mat[2,2]*mat[3,4]) +
-                mat[1,2]*(mat[2,0]*mat[3,4] - mat[2,4]*mat[3,0]) +
-                mat[1,4]*(mat[2,2]*mat[3,0] - mat[2,0]*mat[3,2])) +
-                mat[0,2]*(mat[1,0]*(mat[2,1]*mat[3,4] - mat[2,4]*mat[3,1]) +
-                mat[1,1]*(mat[2,4]*mat[3,0] - mat[2,0]*mat[3,4]) +
-                mat[1,4]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0])) +
-                mat[0,4]*(mat[1,0]*(mat[2,2]*mat[3,1] - mat[2,1]*mat[3,2]) +
-                mat[1,1]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) +
-                mat[1,2]*(mat[2,1]*mat[3,0] - mat[2,0]*mat[3,1])))
+        out_inv[3,4] = -(tmp_inv[0]*(tmp_inv[1]*(tmp_inv[2]*mat[3,4] - mat[4,2]*mat[3,2]) +
+                mat[2,1]*(mat[4,2]*mat[3,1] - mat[2,1]*mat[3,4]) +
+                mat[4,1]*(mat[2,1]*mat[3,2] - tmp_inv[2]*mat[3,1])) +
+                mat[1,0]*(mat[1,0]*(mat[4,2]*mat[3,2] - tmp_inv[2]*mat[3,4]) +
+                mat[2,1]*(mat[2,0]*mat[3,4] - mat[4,2]*mat[3,0]) +
+                mat[4,1]*(tmp_inv[2]*mat[3,0] - mat[2,0]*mat[3,2])) +
+                mat[2,0]*(mat[1,0]*(mat[2,1]*mat[3,4] - mat[4,2]*mat[3,1]) +
+                tmp_inv[1]*(mat[4,2]*mat[3,0] - mat[2,0]*mat[3,4]) +
+                mat[4,1]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0])) +
+                mat[4,0]*(mat[1,0]*(tmp_inv[2]*mat[3,1] - mat[2,1]*mat[3,2]) +
+                tmp_inv[1]*(mat[2,0]*mat[3,2] - tmp_inv[2]*mat[3,0]) +
+                mat[2,1]*(mat[2,1]*mat[3,0] - mat[2,0]*mat[3,1])))
 
-        tmp_inv[4][4] = (mat[0,0]*(mat[1,1]*(mat[2,2]*mat[3,3] - mat[2,3]*mat[3,2]) +
-                mat[1,2]*(mat[2,3]*mat[3,1] - mat[2,1]*mat[3,3]) +
-                mat[1,3]*(mat[2,1]*mat[3,2] - mat[2,2]*mat[3,1])) +
-                mat[0,1]*(mat[1,0]*(mat[2,3]*mat[3,2] - mat[2,2]*mat[3,3]) +
-                mat[1,2]*(mat[2,0]*mat[3,3] - mat[2,3]*mat[3,0]) +
-                mat[1,3]*(mat[2,2]*mat[3,0] - mat[2,0]*mat[3,2])) +
-                mat[0,2]*(mat[1,0]*(mat[2,1]*mat[3,3] - mat[2,3]*mat[3,1]) +
-                mat[1,1]*(mat[2,3]*mat[3,0] - mat[2,0]*mat[3,3]) +
-                mat[1,3]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0])) +
-                mat[0,3]*(mat[1,0]*(mat[2,2]*mat[3,1] - mat[2,1]*mat[3,2]) +
-                mat[1,1]*(mat[2,0]*mat[3,2] - mat[2,2]*mat[3,0]) +
-                mat[1,2]*(mat[2,1]*mat[3,0] - mat[2,0]*mat[3,1])))
+        out_inv[4,4] = (tmp_inv[0]*(tmp_inv[1]*(tmp_inv[2]*tmp_inv[3] - mat[3,2]*mat[3,2]) +
+                mat[2,1]*(mat[3,2]*mat[3,1] - mat[2,1]*tmp_inv[3]) +
+                mat[3,1]*(mat[2,1]*mat[3,2] - tmp_inv[2]*mat[3,1])) +
+                mat[1,0]*(mat[1,0]*(mat[3,2]*mat[3,2] - tmp_inv[2]*tmp_inv[3]) +
+                mat[2,1]*(mat[2,0]*tmp_inv[3] - mat[3,2]*mat[3,0]) +
+                mat[3,1]*(tmp_inv[2]*mat[3,0] - mat[2,0]*mat[3,2])) +
+                mat[2,0]*(mat[1,0]*(mat[2,1]*tmp_inv[3] - mat[3,2]*mat[3,1]) +
+                tmp_inv[1]*(mat[3,2]*mat[3,0] - mat[2,0]*tmp_inv[3]) +
+                mat[3,1]*(mat[2,0]*mat[3,1] - mat[2,1]*mat[3,0])) +
+                mat[3,0]*(mat[1,0]*(tmp_inv[2]*mat[3,1] - mat[2,1]*mat[3,2]) +
+                tmp_inv[1]*(mat[2,0]*mat[3,2] - tmp_inv[2]*mat[3,0]) +
+                mat[2,1]*(mat[2,1]*mat[3,0] - mat[2,0]*mat[3,1])))
 
-        inv_det = 1.0/(mat[0,0]*tmp_inv[0][0] + mat[1,0]*tmp_inv[0][1] + mat[2,0]*tmp_inv[0][2] + mat[3,0]*tmp_inv[0][3] + mat[4,0]*tmp_inv[0][4])
+        inv_det = 1.0/(tmp_inv[0]*out_inv[0,0] + mat[1,0]*out_inv[0,1] + mat[2,0]*out_inv[0,2] + mat[3,0]*out_inv[0,3] + mat[4,0]*out_inv[0,4])
 
         for i in range(k):
             for j in range(i,k):
-                out_inv[i,j] = tmp_inv[i][j] * inv_det
+                out_inv[i,j] = out_inv[i,j] * inv_det
 
         out_inv[1,0] = out_inv[0,1]
         out_inv[2,0] = out_inv[0,2]
@@ -889,11 +890,10 @@ cdef void inverse_symmetric_psd(double[:,:] mat, double[:,:] out_inv):
         out_inv[3,2] = out_inv[2,3]
         out_inv[4,2] = out_inv[2,4]
         out_inv[4,3] = out_inv[3,4]
-
     else:
         inverse_dpotr(mat, out_inv)
 
-cdef dgemv(double alpha, double[:,:] A, double[:] x, double beta, double[:] y):
+cdef void dgemv(double alpha, double[:,:] A, double[:] x, double beta, double[:] y):
     """
     See http://www.netlib.org/lapack/explore-html/d7/d15/group__double__blas__level2_gadd421a107a488d524859b4a64c1901a9.html
     :param alpha: 
