@@ -93,6 +93,7 @@ class BGeScore(StructureScore):
         See page 23 of Bottcher's PhD thesis.
         """
 
+        parents = list(parents)
         node_data = self.data[[variable] + parents].dropna()
         # TODO: Implement non-uniform graph priors.
         if not parents:
@@ -103,7 +104,6 @@ class BGeScore(StructureScore):
             return _local_score_with_parents(node_data[parents].values,
                                              node_data[variable].values,
                                              self.iss, self.phi_coef)
-
 
 cdef double _local_score_noparents(double[:] variable_data, double iss, double phi_coef):
     cdef Py_ssize_t N = variable_data.shape[0]
@@ -161,7 +161,6 @@ cdef double[:] get_mean_data(double[:,:] linregress_data):
         means[j] /= N
     return means
 
-
 cdef double[:,:] get_covariance_data(double[:,:] linregress_data, double[:] means):
     cdef Py_ssize_t N = linregress_data.shape[0]
     cdef Py_ssize_t k = linregress_data.shape[1]
@@ -177,7 +176,6 @@ cdef double[:,:] get_covariance_data(double[:,:] linregress_data, double[:] mean
 
             cov[i,j] = cov[j,i] = cov[i,j] / (N-1)
     return cov
-
 
 cdef void _build_tau(double[:,:] linregress_data, double phi_coef, double iss, double[:,:] tau, double[:,:] inv_tau):
     """
@@ -245,7 +243,6 @@ cdef void _benchmark(double[:,:] linregress_data, double[:] variable_data, int i
     print("Time per cycle general = " + str(cpu_time_used/REP))
     print("Total time general = " + str(cpu_time_used))
 
-
 cdef double _local_score_with_parents(double[:,:] linregress_data, double[:] variable_data, int iss, double phi_coef):
     """
     Computes a score that measures how much a given variable is "influenced" by a given list of potential parents.
@@ -289,15 +286,12 @@ cdef double _local_score_with_parents(double[:,:] linregress_data, double[:] var
     cdef double[:] dgemv_workspace = np.empty((tau_ncol))
     dgemv_workspace[0] = 1
 
-    cdef double delta_phi = 0
-    cdef Py_ssize_t instances_to_debug = N
-    for i in range(instances_to_debug):
+    for i in range(N):
 
         for j in range(1, tau_ncol):
             zi[j] = linregress_data[i,j-1]
 
         xprod = mahalanobis(zi, inv_tau, zi)
-
         logscale = log(phi) + log1p(xprod)
         logk = lgamma(0.5*(1.0 + rho)) - lgamma(0.5*rho) - 0.5*(logscale + log(M_PI))
 
@@ -342,5 +336,3 @@ cdef double _local_score_with_parents(double[:,:] linregress_data, double[:] var
         phi += (variable_data[i] - zi_mu)*variable_data[i] + mahalanobis(delta_mu, old_tau, old_mu)
 
     return score
-
-
