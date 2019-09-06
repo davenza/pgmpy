@@ -43,17 +43,30 @@ def to_bnlearn_str(graph):
 
 
 if __name__ == '__main__':
-    bge = BGeScore(ecoli_data)
-    print(bge.local_score("b1583", ["asnA"]))
-    print(bge.local_score("b1583", ["asnA", "atpD"]))
-    print(bge.local_score("b1583", ["asnA", "atpD", "b1963"]))
-    print(bge.local_score("b1583", ["asnA", "atpD", "b1963", "cspG"]))
-    print(bge.local_score("b1583", ["asnA", "atpD", "b1963", "cspG", "dnaJ", "dnaK"]))
+    # bge = BGeScore(ecoli_data)
+    # print(bge.local_score("asnA", ["aceB", "ygcE"]))
+    # print("BGe:")
+    # print("asnA -> atpD")
+    # print("\t asnA score: " + str(bge.local_score("asnA", [])))
+    # print("\t atpD score: " + str(bge.local_score("atpD", ["asnA"])))
+    # print("\t Total score: " + str(bge.local_score("asnA", []) + bge.local_score("atpD", ["asnA"])))
+    # print("--------------------------------")
+    #
+    # print("atpD -> asnA")
+    # print("\t asnA score: " + str(bge.local_score("asnA", ["atpD"])))
+    # print("\t atpD score: " + str(bge.local_score("atpD", [])))
+    # print("\t Total score: " + str(bge.local_score("asnA", ["atpD"]) + bge.local_score("atpD", [])))
+
+
+    # print(bge.local_score("b1583", ["asnA", "atpD"]))
+    # print(bge.local_score("b1583", ["asnA", "atpD", "b1963"]))
+    # print(bge.local_score("b1583", ["asnA", "atpD", "b1963", "cspG"]))
+    # print(bge.local_score("b1583", ["asnA", "atpD", "b1963", "cspG", "dnaJ", "dnaK"]))
 
     # bge.local_score("aceB", ["atpD", "b1583", "b1963", "cspG", "dnaG", "dnaJ", "dnaK", "eutG", "fixC", "flgD"])
-    # hc_ecoli = CachedHillClimbing(ecoli_data, scoring_method=BGeScore(ecoli_data))
-    # network = hc_ecoli.estimate()
-    # to_bnlearn_str(network)
+    hc_ecoli = CachedHillClimbing(ecoli_data, scoring_method=BGeScore(ecoli_data))
+    network = hc_ecoli.estimate()
+    to_bnlearn_str(network)
     # print(network.edges)
     #
     # print("Num edges: " + str(len(network.edges)))
