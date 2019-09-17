@@ -1060,7 +1060,6 @@ cdef double det(double[:,:] mat, bint overwrite=False):
         det_1245_1345,det_1245_2345,det_1345_1234,det_1345_1235,det_1345_1245,det_1345_1345,det_1345_2345,det_2345_1234,\
         det_2345_1235,det_2345_1245,det_2345_1345,det_2345_2345
 
-
     if mat.shape[0] == 1:
         return mat[0,0]
     elif mat.shape[0] == 2:

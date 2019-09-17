@@ -6,6 +6,11 @@ from Cython.Build import cythonize
 import numpy as np
 import pgmpy
 
+
+import os
+
+os.environ['CFLAGS'] = "-march=native"
+
 setup(
     name="pgmpy",
     version=pgmpy.__version__,
@@ -29,7 +34,8 @@ setup(
     long_description="https://github.com/pgmpy/pgmpy/blob/dev/README.md",
     install_requires=[],
     ext_modules=cythonize(["pgmpy/estimators/BGeScore.pyx",
-                           "pgmpy/cython_backend/linear_algebra.pyx"], annotate=True),
+                           "pgmpy/cython_backend/linear_algebra.pyx",
+                           "pgmpy/cython_backend/covariance.pyx"], annotate=True),
     include_dirs=[np.get_include()],
     zip_safe=False
 )

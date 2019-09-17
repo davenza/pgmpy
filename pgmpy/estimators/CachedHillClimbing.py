@@ -155,7 +155,6 @@ class CachedHillClimbing(StructureEstimator):
                 scores[other_index, node_index] = local_score(node, parents_new) - \
                                                 local_score(node, parents)
 
-
                 # Delta score of reversing arc 'other_node' -> 'node'
                 other_node_parents = set(graph.get_parents(other_node))
                 other_node_parents_new = other_node_parents.copy()
@@ -237,6 +236,7 @@ class CachedHillClimbing(StructureEstimator):
                 graph.add_edge(source_node, dest_node)
                 must_check_for_cycle = False if not any(graph.get_parents(source_node)) or \
                                                not any(graph.get_children(dest_node)) else True
+
                 if must_check_for_cycle:
                     isdag = nx.is_directed_acyclic_graph(graph)
 
@@ -261,7 +261,7 @@ class CachedHillClimbing(StructureEstimator):
 
                     graph.remove_edge(source_node, dest_node)
                     if isdag:
-                        return ("+", dest_node, source_node, delta_score)
+                        return ("+", source_node, dest_node, delta_score)
                     else:
                         continue
                 else:
@@ -302,7 +302,6 @@ class CachedHillClimbing(StructureEstimator):
                                                not any(graph.get_children(dest_node)) else True
                 if must_check_for_cycle:
                     isdag = nx.is_directed_acyclic_graph(graph)
-
                     graph.remove_edge(source_node, dest_node)
                     graph.add_edge(dest_node, source_node)
 
@@ -400,6 +399,7 @@ class CachedHillClimbing(StructureEstimator):
         while iter_no <= max_iter:
             iter_no += 1
             op = best_operator_fun(current_model, scores)
+
             if op is None:
                 break
 
