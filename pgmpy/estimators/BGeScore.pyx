@@ -19,7 +19,10 @@ cdef extern from "time.h":
 
 
 from ..cython_backend cimport linear_algebra
-from ..cython_backend cimport covariance
+IF SIMD == True:
+    from ..cython_backend cimport covariance_simd as covariance
+ELSE:
+    from ..cython_backend cimport covariance
 
 class BGeScore(StructureScore):
     def __init__(self, data, iss_mu=1, iss_w=None, nu=None, **kwargs):
@@ -151,24 +154,25 @@ cdef double _local_score_noparents(double[:] variable_data, int n_variables, dou
     logprob += 0.5*(alpha_w - n_variables + 1)*log(t)
 
     cdef double mean = covariance.mean(variable_data)
-    # cdef double sse = covariance.sse(variable_data, mean)
-    #
-    # cdef double nu_diff = mean  - nu
-    # cdef double r = t + sse + ((N * alpha_mu) / (N + alpha_mu) * nu_diff * nu_diff)
-    #
-    # logprob -= 0.5 * (N + alpha_w - n_variables + 1)*log(r)
-    #
+    print("mean = " + str(mean))
+    cdef double sse = covariance.sse(variable_data, mean)
+    print("sse = " + str(sse))
+
+
+    cdef double nu_diff = mean  - nu
+    cdef double r = t + sse + ((N * alpha_mu) / (N + alpha_mu) * nu_diff * nu_diff)
+
+    logprob -= 0.5 * (N + alpha_w - n_variables + 1)*log(r)
     return logprob
 
 
 cdef void _benchmark_noparents(double[:] variable_data, int n_variables, double alpha_mu, double nu, double alpha_w):
-
-    cdef int i, REP = 10000
-    cdef clock_t start_time, end_time
-
+    # cdef Py_ssize_t i, REP = 10000
+    # cdef clock_t start_time, end_time
+    #
     # start_time = clock()
     # for i in range(REP):
-        # _local_score_noparents(variable_data, n_variables, alpha_mu, nu, alpha_w)
+    #     _local_score_noparents(variable_data, n_variables, alpha_mu, nu, alpha_w)
     # end_time = clock()
     # cdef double cpu_time_used = (<double> (end_time - start_time)) / (CLOCKS_PER_SEC/1000)
     # print("Time per cycle general = " + str(cpu_time_used/REP))
@@ -188,6 +192,8 @@ cdef void _benchmark_with_parents(double[:,:] parents_data, double[:] variable_d
     cdef double cpu_time_used = (<double> (end_time - start_time)) / (CLOCKS_PER_SEC/1000)
     print("Time per cycle general = " + str(cpu_time_used/REP))
     print("Total time general = " + str(cpu_time_used))
+    #
+    # _local_score_with_parents(parents_data, variable_data, n_variables, alpha_mu, nu, alpha_w)
 
 cdef double _local_score_with_parents(double[:,:] parents_data, double[:] variable_data, int n_variables, double alpha_mu,
                                       double[:] nu, double alpha_w):
@@ -195,7 +201,7 @@ cdef double _local_score_with_parents(double[:,:] parents_data, double[:] variab
     Computes a score that measures how much a given variable is "influenced" by a given list of potential parents.
 
     See page 23 of Bottcher's PhD thesis or "Learning Conditional Gaussian Networks", Bottcher, 2004 .
-    
+
     Based on bnlearn's code (wishart.posterior.c).
     """
     cdef Py_ssize_t N = parents_data.shape[0], p = parents_data.shape[1], i, j

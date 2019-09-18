@@ -1,4 +1,4 @@
-cdef double mean(double[:] data)
+cdef double mean(double[:] data) nogil
 cdef double[:] mean_vec(double[:,:] data)
 
 cdef double sse(double[:] data, double mean)

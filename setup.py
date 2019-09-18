@@ -11,6 +11,13 @@ import os
 
 os.environ['CFLAGS'] = "-march=native"
 
+USE_SIMD = False
+
+if USE_SIMD:
+    env_flags = {'SIMD': True}
+else:
+    env_flags = {'SIMD': False}
+
 setup(
     name="pgmpy",
     version=pgmpy.__version__,
@@ -35,7 +42,8 @@ setup(
     install_requires=[],
     ext_modules=cythonize(["pgmpy/estimators/BGeScore.pyx",
                            "pgmpy/cython_backend/linear_algebra.pyx",
-                           "pgmpy/cython_backend/covariance.pyx"], annotate=True),
+                           "pgmpy/cython_backend/covariance_simd.pyx",
+                           "pgmpy/cython_backend/covariance.pyx"], annotate=True, compile_time_env=env_flags),
     include_dirs=[np.get_include()],
     zip_safe=False
 )
