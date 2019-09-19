@@ -101,8 +101,6 @@ class BGeScore(StructureScore):
         parents = list(parents)
         node_data = self.data[[variable] + parents].dropna()
 
-
-
         # # TODO: Implement non-uniform graph priors.
         if not parents:
             if self.nu is None:
@@ -132,14 +130,8 @@ cdef double[:] _build_nu(double[:] variable_data, double[:,:] parents_data):
 
     cdef double[:] nu = np.zeros((k+1,))
 
-    for m in range(N):
-        nu[0] += variable_data[m]
-        for j in range(k):
-            nu[j+1] += parents_data[m,k]
-
-    for j in range(k):
-        nu[j] /= N
-
+    nu[0] = covariance.mean(variable_data)
+    nu[1:] = covariance.mean_vec(parents_data)
     return nu
 
 cdef double _local_score_noparents(double[:] variable_data, int n_variables, double alpha_mu, double nu, double alpha_w):
@@ -154,10 +146,7 @@ cdef double _local_score_noparents(double[:] variable_data, int n_variables, dou
     logprob += 0.5*(alpha_w - n_variables + 1)*log(t)
 
     cdef double mean = covariance.mean(variable_data)
-    print("mean = " + str(mean))
     cdef double sse = covariance.sse(variable_data, mean)
-    print("sse = " + str(sse))
-
 
     cdef double nu_diff = mean  - nu
     cdef double r = t + sse + ((N * alpha_mu) / (N + alpha_mu) * nu_diff * nu_diff)
