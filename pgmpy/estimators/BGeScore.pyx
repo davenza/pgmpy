@@ -17,7 +17,6 @@ from libc.time cimport clock_t, clock
 cdef extern from "time.h":
     enum: CLOCKS_PER_SEC
 
-
 from ..cython_backend cimport linear_algebra
 IF SIMD == True:
     from ..cython_backend cimport covariance_simd as covariance

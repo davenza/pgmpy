@@ -43,7 +43,9 @@ setup(
     ext_modules=cythonize(["pgmpy/estimators/BGeScore.pyx",
                            "pgmpy/cython_backend/linear_algebra.pyx",
                            "pgmpy/cython_backend/covariance_simd.pyx",
-                           "pgmpy/cython_backend/covariance.pyx"], annotate=True, compile_time_env=env_flags),
+                           "pgmpy/cython_backend/covariance.pyx",
+                           "pgmpy/estimators/cython_hill_climbing.pyx"
+                           ], annotate=True, compile_time_env=env_flags),
     include_dirs=[np.get_include()],
     zip_safe=False
 )

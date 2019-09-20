@@ -234,15 +234,19 @@ if __name__ == '__main__':
     #
     #
     #
-    nu = pd.DataFrame([[2.3, 1.0, 3.0]], columns=["asnA", "atpD", "cspG"])
-    bge = BGeScore(ecoli_data, iss_mu=100, iss_w=400, nu=nu)
-    # print(bge.local_score("asnA", ["atpD"]))
+    # bge = BGeScore(ecoli_data)
+    # print("Score aceB -> asnA " + str(bge.local_score("asnA", ["aceB"])))
+    # print("Score asnA " + str(bge.local_score("asnA", [])))
+    # print("Delta " + str(bge.local_score("asnA", ["aceB"]) - bge.local_score("asnA", [])))
     # print(bge.benchmark("cspG", ["atpD"]))
 
     # print(bge.benchmark("cspG", []))
-    print(bge.local_score("cspG", ["atpD"]))
+    # print(bge.local_score("cspG", ["atpD"]))
 
-
+    hc = CachedHillClimbing(ecoli_data, BGeScore(ecoli_data))
+    bn = hc.estimate()
+    print(type(bn))
+    to_bnlearn_str(bn)
 
 
 
