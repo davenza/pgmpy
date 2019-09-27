@@ -130,7 +130,7 @@ class CachedHillClimbing(StructureEstimator):
         * if an arc i->j is blacklisted:
             - source[i,j] is never computed.
             - source[j,i] is computed.
-        * if an arc i-> is whitelisted:
+        * if an arc i->j is whitelisted:
             - source[i,j] is not computed.
             - source[j,i] is not computed.
 

@@ -8,6 +8,7 @@ from .MarkovModel import MarkovModel
 from .NaiveBayes import NaiveBayes
 from .NoisyOrModel import NoisyOrModel
 from .LinearGaussianBayesianNetwork import LinearGaussianBayesianNetwork
+from .HybridContinuousModel import HybridContinuousModel
 from .SEM import SEMGraph, SEMAlg, SEM
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "MarkovChain",
     "NaiveBayes",
     "LinearGaussianBayesianNetwork",
+    "HybridContinuousModel",
     "SEMGraph",
     "SEMAlg",
     "SEM",

@@ -81,7 +81,7 @@ class DAG(nx.DiGraph):
             out_str += "".join(["({0},{1}) ".format(u, v) for (u, v) in cycles])
             raise ValueError(out_str)
 
-    def add_node(self, node, weight=None):
+    def add_node(self, node, weight=None, **kwargs):
         """
         Adds a single node to the Graph.
 
@@ -121,7 +121,7 @@ class DAG(nx.DiGraph):
 
         super(DAG, self).add_node(node, weight=weight)
 
-    def add_nodes_from(self, nodes, weights=None):
+    def add_nodes_from(self, nodes, weights=None, **kwargs):
         """
         Add multiple nodes to the Graph.
 
@@ -208,7 +208,7 @@ class DAG(nx.DiGraph):
         # FIXME: This method does not check for cycles.
         super(DAG, self).add_edge(u, v, weight=weight)
 
-    def add_edges_from(self, ebunch, weights=None):
+    def add_edges_from(self, ebunch, weights=None, **kwargs):
         """
         Add all the edges in ebunch.
 
@@ -263,10 +263,10 @@ class DAG(nx.DiGraph):
                     "The number of elements in ebunch and weights" "should be equal"
                 )
             for index in range(len(ebunch)):
-                self.add_edge(ebunch[index][0], ebunch[index][1], weight=weights[index])
+                self.add_edge(ebunch[index][0], ebunch[index][1], weight=weights[index], **kwargs)
         else:
             for edge in ebunch:
-                self.add_edge(edge[0], edge[1])
+                self.add_edge(edge[0], edge[1], **kwargs)
 
     def get_parents(self, node):
         """

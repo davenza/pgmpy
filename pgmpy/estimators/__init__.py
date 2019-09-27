@@ -7,10 +7,11 @@ from pgmpy.estimators.BdeuScore import BdeuScore
 from pgmpy.estimators.BicScore import BicScore
 from pgmpy.estimators.GaussianBicScore import GaussianBicScore
 from pgmpy.estimators.BGeScore import BGeScore
+from pgmpy.estimators.PredictiveLikelihood import PredictiveLikelihood
 from pgmpy.estimators.ExhaustiveSearch import ExhaustiveSearch
 from pgmpy.estimators.HillClimbSearch import HillClimbSearch
 from pgmpy.estimators.CachedHillClimbing import CachedHillClimbing
-from pgmpy.estimators.HybridContinuousScore import HybridContinuousScore
+from pgmpy.estimators.HybridCachedHillClimbing import HybridCachedHillClimbing
 from pgmpy.estimators.ConstraintBasedEstimator import ConstraintBasedEstimator
 from pgmpy.estimators.SEMEstimator import SEMEstimator, IVEstimator
 
@@ -23,7 +24,7 @@ __all__ = [
     "ExhaustiveSearch",
     "HillClimbSearch",
     "CachedHillClimbing",
-    "HybridContinuousScore",
+    "HybridCachedHillClimbing",
     "ConstraintBasedEstimator",
     "StructureScore",
     "K2Score",
@@ -31,6 +32,7 @@ __all__ = [
     "BicScore",
     "GaussianBicScore",
     "BGeScore",
+    "PredictiveLikelihood",
     "SEMEstimator",
     "IVEstimator",
 ]

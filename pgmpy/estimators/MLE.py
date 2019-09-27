@@ -4,8 +4,8 @@ import numpy as np
 
 from pgmpy.estimators import ParameterEstimator
 from pgmpy.factors.discrete import TabularCPD
-from pgmpy.factors.continuous import LinearGaussianCPD
-from pgmpy.models import BayesianModel, LinearGaussianBayesianNetwork
+from pgmpy.factors.continuous import LinearGaussianCPD, CKDE_CPD
+from pgmpy.models import BayesianModel, LinearGaussianBayesianNetwork, HybridContinuousModel
 
 
 class MaximumLikelihoodEstimator(ParameterEstimator):
@@ -44,9 +44,10 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         >>> estimator = MaximumLikelihoodEstimator(model, data)
         """
 
-        if not isinstance(model, (BayesianModel, LinearGaussianBayesianNetwork)):
+        if not isinstance(model, (BayesianModel, LinearGaussianBayesianNetwork, HybridContinuousModel)):
             raise NotImplementedError(
-                "Maximum Likelihood Estimate is only implemented for BayesianModel and LinearGaussianBayesianNetwork"
+                "Maximum Likelihood Estimate is only implemented for BayesianModel, LinearGaussianBayesianNetwork"
+                "and HybridContinuousModel"
             )
 
         super(MaximumLikelihoodEstimator, self).__init__(model, data, **kwargs)
@@ -125,6 +126,11 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         """
         if isinstance(self.model, LinearGaussianBayesianNetwork):
             return self.gaussian_estimate(node)
+        elif isinstance(self.model, HybridContinuousModel):
+            if self.model.node_type[node] == HybridContinuousModel.NodeType.GAUSSIAN:
+                return self.gaussian_estimate(node)
+            elif self.model.node_type[node] == HybridContinuousModel.NodeType.CKDE:
+                return self.ckde_estimate(node)
         elif isinstance(self.model, BayesianModel):
             return self.discrete_estimate(node)
 
@@ -168,15 +174,18 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         :return:
         """
         parents = sorted(self.model.get_parents(node))
-
         node_data = self.data[[node] + parents].dropna()
-        linregress_data = np.column_stack((np.ones(node_data.shape[0]), node_data[parents]))
-        (beta, res, _, _) = np.linalg.lstsq(linregress_data, node_data[node], rcond=None)
+        return MaximumLikelihoodEstimator.gaussian_estimate_with_parents(node, parents, node_data)
 
-        if node_data.shape[0] <= 1:
+    @classmethod
+    def gaussian_estimate_with_parents(cls, node, parents, data):
+        linregress_data = np.column_stack((np.ones(data.shape[0]), data[parents]))
+        (beta, res, _, _) = np.linalg.lstsq(linregress_data, data[node], rcond=None)
+
+        if data.shape[0] <= 1:
             variance = 0
         else:
-            variance = res[0] / (node_data.shape[0] - 1)
+            variance = res[0] / (data.shape[0] - 1)
 
         cpd = LinearGaussianCPD(
             node,
@@ -184,4 +193,31 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
             variance,
             evidence=parents
         )
+
         return cpd
+
+    def ckde_estimate(self, node):
+        parents = sorted(self.model.get_parents(node))
+        node_data = self.data[[node] + parents].dropna()
+        return MaximumLikelihoodEstimator.ckde_estimate_with_parents(node, parents, self.model.node_types, node_data)
+
+    @classmethod
+    def ckde_estimate_with_parents(self, node, parents, parent_types, data):
+        gaussian_parents = []
+        ckde_parents = []
+
+        for parent in parents:
+            if parent_types[parent] == HybridContinuousModel.NodeType.GAUSSIAN:
+                gaussian_parents.append(parent)
+            else:
+                ckde_parents.append(parent)
+
+        gaussian_cpds = []
+        chain_rule_parents = [node] + ckde_parents
+
+        for g in gaussian_parents:
+            gaussian_cpds.append(self.gaussian_estimate_with_parents(g, chain_rule_parents, data))
+            chain_rule_parents = chain_rule_parents.copy()
+            chain_rule_parents.append(g)
+
+        return CKDE_CPD(node, gaussian_cpds, data.loc[:, [node] + ckde_parents], evidence=parents, evidence_type=parent_types)

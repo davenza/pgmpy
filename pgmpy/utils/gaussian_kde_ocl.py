@@ -29,7 +29,7 @@ class gaussian_kde_ocl(object):
         :param bw_method: Bandwidth computation method.
         """
         self.__ffi = FFI()
-        self.__lib = self.__ffi.dlopen("./target/release/libkde_rust.so")
+        self.__lib = self.__ffi.dlopen("./pgmpy/utils/libkde_rust.so")
         self.__ffi.cdef(
             'struct FloatNumpyArray {'
             'float* ptr;'
@@ -217,7 +217,7 @@ class shared_gaussian_kde_ocl(object):
         :param bw_method: Bandwidth computation method.
         """
         self.__ffi = FFI()
-        self.__lib = self.__ffi.dlopen("./target/release/libkde_rust.so")
+        self.__lib = self.__ffi.dlopen("./pgmpy/utils/libkde_rust.so")
         self.__ffi.cdef(
             'struct FloatNumpyArray {'
             'float* ptr;'

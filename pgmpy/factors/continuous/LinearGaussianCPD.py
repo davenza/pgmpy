@@ -90,6 +90,24 @@ class LinearGaussianCPD(BaseFactor):
 
         return _pdf
 
+    @property
+    def logpdf(self):
+        def _logpdf(*args):
+            # The first element of args is the value of the variable on which CPD is defined
+            # and the rest of the elements give the mean values of the parent
+            # variables.
+            mean = self.beta[0] + np.dot(self.beta[1:], np.asarray(args))
+
+            return norm.logpdf(args[0], np.array(mean), self.variance)
+
+        return _logpdf
+
+
+    def logpdf_dataset(self, dataset):
+        means = self.beta[0] + np.sum(self.beta[1:]*dataset.iloc[:,1:], axis=1)
+
+        return norm.logpdf(dataset.iloc[:,0], means, self.variance).sum()
+
     def copy(self):
         """
         Returns a copy of the distribution.
