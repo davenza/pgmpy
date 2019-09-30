@@ -40,5 +40,5 @@ class PredictiveLikelihood(StructureScore):
 
             score += cpd.logpdf_dataset(test_data)
 
-        return score / self.k
+        return score
 

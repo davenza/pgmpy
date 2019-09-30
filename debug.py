@@ -1,5 +1,6 @@
 import numpy as np
 # np.seterr(all='raise')
+np.random.seed(0)
 import pandas as pd
 
 import networkx as nx
@@ -79,18 +80,15 @@ def total_score(graph, scoring_method):
 
 if __name__ == '__main__':
 
-    import gc
 
-    gc.set_debug(gc.DEBUG_COLLECTABLE)
-    
     hc = HybridCachedHillClimbing(mixture_data)
     bn = hc.estimate()
 
-    print("=======================")
-    print("=======================")
-
-    hc = CachedHillClimbing(mixture_data)
-    bn = hc.estimate()
+    # print("=======================")
+    # print("=======================")
+    #
+    # hc = CachedHillClimbing(mixture_data)
+    # bn = hc.estimate()
 
     #
     # pred_log = PredictiveLikelihood(mixture_data)

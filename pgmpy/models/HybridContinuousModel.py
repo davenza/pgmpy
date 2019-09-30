@@ -21,8 +21,12 @@ class HybridContinuousModel(BayesianModel):
 
     def __init__(self, ebunch=None, node_type=None):
         super(HybridContinuousModel, self).__init__()
+
+        self.node_type = {}
+        self.cpds = []
+
         if ebunch:
-            self.add_edges_from(ebunch)
+            self.add_edges_from(ebunch, node_type=node_type)
 
             if node_type:
                 set_nodes = set(self.nodes)
@@ -43,8 +47,7 @@ class HybridContinuousModel(BayesianModel):
                 for n in self.nodes:
                     self.node_type[n] = HybridContinuousModel.NodeType.GAUSSIAN
 
-        self.node_type = {}
-        self.cpds = []
+
 
     def add_edge(self, u, v, **kwargs):
         if u == v:
@@ -75,7 +78,7 @@ class HybridContinuousModel(BayesianModel):
                 if not v in self.nodes:
                     self.node_type[v] = HybridContinuousModel.NodeType.GAUSSIAN
 
-            super(BayesianModel, self).add_edge(u, v, **kwargs)
+            super(HybridContinuousModel, self).add_edge(u, v, **kwargs)
 
     def add_node(self, node, weight=None, **kwargs):
         if "node_type" in kwargs:

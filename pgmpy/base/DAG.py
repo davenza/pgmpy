@@ -167,7 +167,7 @@ class DAG(nx.DiGraph):
             for node in nodes:
                 self.add_node(node=node)
 
-    def add_edge(self, u, v, weight=None):
+    def add_edge(self, u, v, weight=None, **kwargs):
         """
         Add an edge between u and v.
 

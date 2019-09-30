@@ -125,9 +125,12 @@ class HybridCachedHillClimbing(StructureEstimator):
 
                 other_node_parents_new = other_node_parents.copy()
                 other_node_parents_new.remove(node)
-                scores[node_index, other_index] = local_score(other_node, other_node_parents_new, node_type, model.node_type) +\
+
+                other_node_type = model.node_type[other_node]
+
+                scores[node_index, other_index] = local_score(other_node, other_node_parents_new, other_node_type, model.node_type) +\
                                                 local_score(node, parents_new, node_type, model.node_type) -\
-                                                local_score(other_node, other_node_parents, node_type, model.node_type) -\
+                                                local_score(other_node, other_node_parents, other_node_type, model.node_type) -\
                                                 local_score(node, parents, node_type, model.node_type)
                 print("Caching reversing arc " + node + " -> " + other_node + " (" + str(scores[node_index, other_index]) + ")")
 
@@ -317,7 +320,6 @@ class HybridCachedHillClimbing(StructureEstimator):
                                                 local_score(node, parents, node_type, model.node_type)
 
                 print("Updating reversing arc " + node + " -> " + other_node + " (" + str(scores[other_index, node_index]) + ")")
-
 
                 str_p = ""
                 str_other_p = ""

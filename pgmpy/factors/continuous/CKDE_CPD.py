@@ -54,8 +54,8 @@ class CKDE_CPD(BaseFactor):
 
             # self.gaussian_indices.append([self.evidence.index(e) + 1 if e != variable else 0 for e in gaussian_cpd.evidence])
 
-        self.kde_instances = kde_instances
-        self.joint_kde = gaussian_kde_ocl(self.kde_instances.values)
+        self.kde_instances = kde_instances.values
+        self.joint_kde = gaussian_kde_ocl(self.kde_instances)
         self.n_kde = self.kde_instances.shape[1] - 1
 
         super(CKDE_CPD, self).__init__()
@@ -136,13 +136,13 @@ class CKDE_CPD(BaseFactor):
         prob = 0
 
         for i in range(dataset.shape[0]):
-            Ti = (dataset.iloc[i, [0] + self.kde_indices] - self.kde_instances).values
+            Ti = (dataset.iloc[i, [0] + self.kde_indices].values - self.kde_instances)
 
-            bi = (self.kde_instances.iloc[:,0]*precision[0,0] - np.dot(Ti[:,1:], precision[0, 1:])).values
+            bi = (self.kde_instances[:,0]*precision[0,0] - np.dot(Ti[:,1:], precision[0, 1:]))
 
             ci = (np.sum(np.dot(Ti[:,1:], precision[1:, 1:])*Ti[:,1:], axis=1) -
-                 2*self.kde_instances.iloc[:,0]*np.dot(Ti[:,1:], precision[0, 1:]) +
-                 (self.kde_instances.iloc[:,0]*self.kde_instances.iloc[:,0])*precision[0,0]).values
+                 2*self.kde_instances[:,0]*np.dot(Ti[:,1:], precision[0, 1:]) +
+                 (self.kde_instances[:,0]*self.kde_instances[:,0])*precision[0,0])
 
 
             for j, gaussian_cpd in enumerate(self.gaussian_cpds):
