@@ -7,7 +7,7 @@ import pandas as pd
 from scipy.stats import norm
 
 from pgmpy.factors.base import BaseFactor
-from pgmpy.utils.gaussian_kde_ocl import shared_gaussian_kde_ocl as gaussian_kde_ocl
+from pgmpy.kde_ocl import gaussian_kde_ocl
 from pgmpy.models import HybridContinuousModel
 
 from scipy.special import logsumexp

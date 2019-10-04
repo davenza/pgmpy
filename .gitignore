@@ -43,3 +43,8 @@ docs/examples/*
 
 *.c
 *.html
+
+Cargo.lock
+**/target
+**/*.rs.bk
+dist/
