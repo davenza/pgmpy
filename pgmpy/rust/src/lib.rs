@@ -95,6 +95,10 @@ use std::mem;
 use std::ptr;
 use std::slice;
 
+mod denominator_onlykde;
+
+pub use denominator_onlykde::logdenominator_dataset_onlykde;
+
 mod open_cl_code;
 
 #[macro_use]
@@ -762,13 +766,14 @@ pub unsafe extern "C" fn gaussian_kde_logpdf(
     let mut kde_box = Box::from_raw(kde);
     let mut pro_que = Box::from_raw(pro_que);
     let m = *(*x).shape;
+
+    *error = Error::NoError;
     if kde_box.n >= m {
         logpdf_iterate_test(&mut kde_box, &mut pro_que, x, result, error);
     } else {
         logpdf_iterate_train(&mut kde_box, &mut pro_que, x, result, error);
     }
 
-    *error = Error::NoError;
     Box::into_raw(kde_box);
     Box::into_raw(pro_que);
 }
@@ -895,7 +900,7 @@ unsafe fn logpdf_iterate_test(
 /// position of `result_buffer` (i.e., `result_buffer[0]`). **This operation invalidates the rest
 /// of the data in `result_buffer`**, but keeps constant `max_buffer`.
 ///
-/// `global_size` is the length of the `sum_buffer`. `max_work_size` is the maximum
+/// `global_size` is the length of the `result_buffer`. `max_work_size` is the maximum
 /// number of work items in a work group for the selected device. `local_size` is the actual number
 /// of work items in each work group. `num_groups` is the actual number of work groups.
 ///
@@ -1183,6 +1188,7 @@ unsafe fn logpdf_iterate_train_low_memory(
         .expect("Kernel log_and_sum build failed.");
 
     // Writes the max loglikelihoods in the max_buffer
+    // TODO: Find max with euclidian distance is probably faster.
     for i in 0..n {
         kernel_substract.set_arg("row", i as u32).unwrap();
         kernel_substract
@@ -1365,6 +1371,7 @@ unsafe fn logpdf_iterate_train_high_memory(
         .enq()
         .expect("Error reading result data.");
 }
+
 
 /// Finds the maximum element of each row in the matrix buffer `max_buffer` and saves the result in
 /// the first column of each row of the matrix buffer `result_buffer`. **This operation invalidates

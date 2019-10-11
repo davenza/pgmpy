@@ -54,7 +54,7 @@ def build_native(spec):
     )
 
     spec.add_cffi_module(
-        module_path='pgmpy.kde_ocl._ffi',
+        module_path='pgmpy.factors.continuous.CKDE_CPD._ffi',
         dylib=lambda: build.find_dylib('kde_ocl_sys', in_path='target/release'),
         header_filename=lambda: build.find_header('kde-ocl-sys.h', in_path='target'),
         rtld_flags=['NOW', 'NODELETE']
@@ -76,8 +76,12 @@ class CleanCommand(distutils.cmd.Command):
 
     def run(self):
 
-        files_to_delete = ["pgmpy/kde_ocl/_ffi.py", "pgmpy/kde_ocl/_ffi__ffi.py", "pgmpy/kde_ocl/_ffi__lib.so",
-                           "pgmpy/kde_ocl/_ffi__lib.pyd", "pgmpy/rust/src/open_cl_code.rs"]
+        files_to_delete = ["pgmpy/factors/continuous/CKDE_CPD/_ffi.py",
+                           "pgmpy/factors/continuous/CKDE_CPD/_ffi__ffi.py",
+                           "pgmpy/factors/continuous/CKDE_CPD/_ffi__lib.so",
+                           "pgmpy/factors/continuous/CKDE_CPD/_ffi__lib.pyd",
+                           "pgmpy/rust/src/open_cl_code.rs"]
+
         for file in files_to_delete:
             if os.path.exists(file):
                 os.remove(file)

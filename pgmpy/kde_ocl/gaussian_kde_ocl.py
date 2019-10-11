@@ -185,8 +185,52 @@ class gaussian_kde_ocl(object):
             raise MemoryError("Memory error allocating space in the OpenCL device.")
         return result
 
-    def denominator_ckde(self, x):
-        pass
+    def denominator_onlykde(self, x):
+        points = np.atleast_2d(x)
+        m, d = points.shape
+        if d != self.d:
+            if m == 1 == self.d:
+                # points was passed in as a row vector
+                points = points.T
+                m = d
+            else:
+                msg = "points have dimension %s, dataset has dimension %s" % (d, self.d)
+                raise ValueError(msg)
+
+        result = np.empty((m,), dtype=np.float64)
+        cffi_points = CFFIDoubleArray(points, ffi)
+        cffi_precision = CFFIDoubleArray(self.inv_cov, ffi)
+        cffi_result = ffi.cast("double *", result.ctypes.data)
+        error = ffi.new("Error*", 0)
+        lib.logdenominator_dataset_onlykde(self.kdedensity, self.pro_que, cffi_points.c_ptr(), cffi_precision.c_ptr(),
+                                           cffi_result, error)
+        if error[0] == Error.MemoryError:
+            raise MemoryError("Memory error allocating space in the OpenCL device.")
+        return result
+
+    def denominator(self, x, a_gaussian, b_gaussian, c_gaussian):
+        points = np.atleast_2d(x)
+        m, d = points.shape
+        if d != self.d:
+            if m == 1 == self.d:
+                # points was passed in as a row vector
+                points = points.T
+                m = d
+            else:
+                msg = "points have dimension %s, dataset has dimension %s" % (d, self.d)
+                raise ValueError(msg)
+
+        result = np.empty((m,), dtype=np.float64)
+        cffi_points = CFFIDoubleArray(points, ffi)
+        cffi_precision = CFFIDoubleArray(self.inv_cov, ffi)
+        cffi_result = ffi.cast("double *", result.ctypes.data)
+        error = ffi.new("Error*", 0)
+        lib.logdenominator_dataset(self.kdedensity, self.pro_que, cffi_points.c_ptr(), cffi_precision.c_ptr(),
+                                   a_gaussian, b_gaussian, c_gaussian, cffi_result, error)
+        if error[0] == Error.MemoryError:
+            raise MemoryError("Memory error allocating space in the OpenCL device.")
+        return result
+
 
     def new_proque(self):
         return lib.new_proque()

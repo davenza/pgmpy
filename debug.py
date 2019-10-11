@@ -3,18 +3,9 @@ import numpy as np
 np.random.seed(0)
 import pandas as pd
 
-import networkx as nx
-
-from pgmpy.estimators import CachedHillClimbing, GaussianBicScore, BGeScore, HybridCachedHillClimbing, PredictiveLikelihood
-from pgmpy.estimators.BGeScorePy import BGeScore as BGeScorePy
 from pgmpy.models import HybridContinuousModel
+from pgmpy.estimators import MaximumLikelihoodEstimator
 
-from pgmpy.cython_backend import linear_algebra
-
-import timeit
-
-import pgmpy
-import matplotlib.pyplot as plt
 
 # Example Gaussian data a -> c <- b
 def basic_data():
@@ -81,8 +72,18 @@ def total_score(graph, scoring_method):
 if __name__ == '__main__':
 
 
-    hc = HybridCachedHillClimbing(mixture_data)
-    bn = hc.estimate()
+    # hc = HybridCachedHillClimbing(mixture_data)
+    # bn = hc.estimate()
+
+
+    ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents('c', ['a'], {'a': HybridContinuousModel.NodeType.GAUSSIAN},
+                                                                 mixture_data[['c', 'a']])
+
+    # data = [[3.2, 0.5], [8000, 0.5]]
+    # df = pd.DataFrame(data, columns=['c', 'a'])
+
+    # print(ckde._logdenominator_dataset_python(df))
+    # print(np.sum(ckde._logdenominator_dataset(df)))
 
     # print("=======================")
     # print("=======================")
