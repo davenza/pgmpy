@@ -219,7 +219,7 @@ class CKDE_CPD(BaseFactor):
         return _logpdf
 
     def kde_logpdf(self, dataset):
-        points = np.asfortranarray(np.atleast_2d(dataset.to_numpy()))
+        points = np.atleast_2d(dataset.to_numpy())
         m, d = points.shape
         if d != self.d:
             if m == 1 == self.d:
