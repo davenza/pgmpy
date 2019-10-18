@@ -1,23 +1,11 @@
 from pgmpy.models import BayesianModel
 
-from pgmpy.factors.continuous import LinearGaussianCPD, CKDE_CPD
+from pgmpy.factors.continuous import LinearGaussianCPD, NodeType, CKDE_CPD
 
 import networkx as nx
 
+
 class HybridContinuousModel(BayesianModel):
-
-    class NodeType:
-        GAUSSIAN = 0
-        CKDE = 1
-
-        @classmethod
-        def str(cls, n):
-            if n == cls.GAUSSIAN:
-                return "GAUSSIAN"
-            elif n == cls.CKDE:
-                return "CKDE"
-            else:
-                raise ValueError("Value not valid for NodeType")
 
     def __init__(self, ebunch=None, node_type=None):
         super(HybridContinuousModel, self).__init__()
@@ -41,11 +29,11 @@ class HybridContinuousModel(BayesianModel):
                 other_difference = set_nodes - keys_nodes
                 if other_difference:
                     for n in other_difference:
-                        self.node_type[n] = HybridContinuousModel.NodeType.GAUSSIAN
+                        self.node_type[n] = NodeType.GAUSSIAN
             else:
                 self.node_type = {}
                 for n in self.nodes:
-                    self.node_type[n] = HybridContinuousModel.NodeType.GAUSSIAN
+                    self.node_type[n] = NodeType.GAUSSIAN
 
 
 
@@ -61,12 +49,12 @@ class HybridContinuousModel(BayesianModel):
             if "node_type" in kwargs:
                 if u in self.nodes and self.node_type[u] != kwargs["node_type"][u]:
                     logging.warning("Node {} with a different assigned node type. Previous type {}, New type {}", u,
-                                    HybridContinuousModel.NodeType.str(self.node_type[u]),
+                                    NodeType.str(self.node_type[u]),
                                     kwargs["node_type"][u]
                                     )
                 if v in self.nodes and self.node_type[v] != kwargs["node_type"][v]:
                     logging.warning("Node {} with a different assigned node type. Previous type {}, New type {}", v,
-                                    HybridContinuousModel.NodeType.str(self.node_type[v]),
+                                    NodeType.str(self.node_type[v]),
                                     kwargs["node_type"][v]
                                     )
 
@@ -74,34 +62,34 @@ class HybridContinuousModel(BayesianModel):
                 self.node_type[v] = kwargs["node_type"][v]
             else:
                 if not u in self.nodes:
-                    self.node_type[u] = HybridContinuousModel.NodeType.GAUSSIAN
+                    self.node_type[u] = NodeType.GAUSSIAN
                 if not v in self.nodes:
-                    self.node_type[v] = HybridContinuousModel.NodeType.GAUSSIAN
+                    self.node_type[v] = NodeType.GAUSSIAN
 
             super(HybridContinuousModel, self).add_edge(u, v, **kwargs)
 
     def add_node(self, node, weight=None, **kwargs):
         if "node_type" in kwargs:
-            if not isinstance(kwargs["node_type"], HybridContinuousModel.NodeType):
-                raise TypeError("Node type should be of type HybridContinuousModel.NodeType")
+            if not isinstance(kwargs["node_type"], NodeType):
+                raise TypeError("Node type should be of type NodeType")
             self.node_type[node] = kwargs["node_type"]
         else:
-            self.node_type[node] = HybridContinuousModel.NodeType.GAUSSIAN
+            self.node_type[node] = NodeType.GAUSSIAN
 
         super(HybridContinuousModel, self).add_node(node, weight=weight)
 
     def add_nodes_from(self, nodes, weights=None, **kwargs):
         if "node_type" in kwargs:
             if not isinstance(kwargs["node_type"], dict):
-                raise TypeError("Node type should be a dictionary of pairs (node, HybridContinuousModel.NodeType).")
+                raise TypeError("Node type should be a dictionary of pairs (node, NodeType).")
 
             for v in kwargs["node_type"].values():
-                if not isinstance(v, HybridContinuousModel.NodeType):
-                    raise TypeError("Node type should be of type HybridContinuousModel.NodeType")
+                if not isinstance(v, NodeType):
+                    raise TypeError("Node type should be of type NodeType")
 
             self.node_type.update(kwargs["node_type"])
         else:
-            self.node_type.update({n: HybridContinuousModel.NodeType.GAUSSIAN for n in nodes})
+            self.node_type.update({n: NodeType.GAUSSIAN for n in nodes})
 
         super(HybridContinuousModel, self).add_nodes_from(nodes, weights=weights)
 
@@ -133,12 +121,12 @@ class HybridContinuousModel(BayesianModel):
 
         """
         for cpd in cpds:
-            if self.node_type[cpd.variable] == HybridContinuousModel.NodeType.GAUSSIAN and not isinstance(cpd, LinearGaussianCPD):
+            if self.node_type[cpd.variable] == NodeType.GAUSSIAN and not isinstance(cpd, LinearGaussianCPD):
                 raise ValueError("Only LinearGaussianCPD can be added for {} node types.",
-                                 HybridContinuousModel.NodeType.str(HybridContinuousModel.NodeType.GAUSSIAN))
-            elif self.node_type[cpd.variable] == HybridContinuousModel.NodeType.CKDE and not isinstance(cpd, CKDE_CPD):
+                                 NodeType.str(NodeType.GAUSSIAN))
+            elif self.node_type[cpd.variable] == NodeType.CKDE and not isinstance(cpd, CKDE_CPD):
                 raise ValueError("Only CKDE_CPD can be added for {} node types.",
-                                 HybridContinuousModel.NodeType.str(HybridContinuousModel.NodeType.CKDE))
+                                 NodeType.str(NodeType.CKDE))
 
             if set(cpd.variables) - set(cpd.variables).intersection(set(self.nodes())):
                 raise ValueError("CPD defined on variable not in the model", cpd)
@@ -232,12 +220,12 @@ class HybridContinuousModel(BayesianModel):
         for node in self.nodes():
             cpd = self.get_cpds(node=node)
 
-            if self.node_type[cpd.variable] == HybridContinuousModel.NodeType.GAUSSIAN and not isinstance(cpd, LinearGaussianCPD):
+            if self.node_type[cpd.variable] == NodeType.GAUSSIAN and not isinstance(cpd, LinearGaussianCPD):
                 raise ValueError("Only LinearGaussianCPD can be added for {} node types.",
-                                 HybridContinuousModel.NodeType.str(HybridContinuousModel.NodeType.GAUSSIAN))
-            elif self.node_type[cpd.variable] == HybridContinuousModel.NodeType.CKDE and not isinstance(cpd, CKDE_CPD):
+                                 NodeType.str(NodeType.GAUSSIAN))
+            elif self.node_type[cpd.variable] == NodeType.CKDE and not isinstance(cpd, CKDE_CPD):
                 raise ValueError("Only CKDE_CPD can be added for {} node types.",
-                                 HybridContinuousModel.NodeType.str(HybridContinuousModel.NodeType.CKDE))
+                                 NodeType.str(NodeType.CKDE))
 
 
             if set(cpd.evidence) != set(self.get_parents(node)):

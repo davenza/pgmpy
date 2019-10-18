@@ -6,6 +6,7 @@ import networkx as nx
 from pgmpy.estimators import StructureEstimator, PredictiveLikelihood
 from pgmpy.base import DAG
 from pgmpy.models import HybridContinuousModel
+from pgmpy.factors.continuous import NodeType
 
 
 class HybridCachedHillClimbing(StructureEstimator):
@@ -108,11 +109,11 @@ class HybridCachedHillClimbing(StructureEstimator):
                 str_p = ""
                 str_p_new = ""
                 for p in parents:
-                    str_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in parents_new:
-                    str_p_new += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
-                print("\t P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                           "P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                print("\t P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
                       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
                       str(local_score(node, parents, node_type, model.node_type))
                       )
@@ -139,18 +140,18 @@ class HybridCachedHillClimbing(StructureEstimator):
                 str_p_new = ""
                 str_other_p_new = ""
                 for p in parents:
-                    str_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in parents_new:
-                    str_p_new += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in other_node_parents:
-                    str_other_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_other_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in other_node_parents_new:
-                    str_other_p_new += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_other_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
 
-                print("\t P([" + other_node + "," + HybridContinuousModel.NodeType.str(model.node_type[other_node]) + "] | " + str_other_p_new + ") + " +
-                           "P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                        "P([" + other_node + "," + HybridContinuousModel.NodeType.str(model.node_type[other_node]) + "] | " + str_other_p + ") - " +
-                        "P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                print("\t P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p_new + ") + " +
+                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                        "P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p + ") - " +
+                        "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
                       str(local_score(other_node, other_node_parents_new, node_type, model.node_type)) + " + " +
                       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
                       str(local_score(other_node, other_node_parents, node_type, model.node_type)) + " - " +
@@ -168,11 +169,11 @@ class HybridCachedHillClimbing(StructureEstimator):
                 str_p = ""
                 str_p_new = ""
                 for p in parents:
-                    str_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in parents_new:
-                    str_p_new += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
-                print("\t P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                           "P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                print("\t P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
                       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
                       str(local_score(node, parents, node_type, model.node_type))
                       )
@@ -183,33 +184,33 @@ class HybridCachedHillClimbing(StructureEstimator):
         local_score = self.scoring_method.local_score
         parents = set(model.get_parents(node))
         parents_type = model.node_type
-        if model.node_type[node] == HybridContinuousModel.NodeType.GAUSSIAN:
-            scores[node_index] = local_score(node, parents, HybridContinuousModel.NodeType.CKDE, parents_type) - \
-                                 local_score(node, parents, HybridContinuousModel.NodeType.GAUSSIAN, parents_type)
+        if model.node_type[node] == NodeType.GAUSSIAN:
+            scores[node_index] = local_score(node, parents, NodeType.CKDE, parents_type) - \
+                                 local_score(node, parents, NodeType.GAUSSIAN, parents_type)
             print("Caching changing type of node " + node + " to CKDE (" + str(scores[node_index]) + ")")
 
             str_p = ""
             for p in parents:
-                str_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
 
-            print("\t P([" + node + "," + HybridContinuousModel.NodeType.str(HybridContinuousModel.NodeType.CKDE) + "] | " + str_p + ") - " +
-                  "P([" + node + "," + HybridContinuousModel.NodeType.str(HybridContinuousModel.NodeType.GAUSSIAN) + "] | " + str_p + ") = " +
-                  str(local_score(node, parents, HybridContinuousModel.NodeType.CKDE, parents_type)) + " - " +
-                  str(local_score(node, parents, HybridContinuousModel.NodeType.GAUSSIAN, parents_type))
+            print("\t P([" + node + "," + NodeType.str(NodeType.CKDE) + "] | " + str_p + ") - " +
+                  "P([" + node + "," + NodeType.str(NodeType.GAUSSIAN) + "] | " + str_p + ") = " +
+                  str(local_score(node, parents, NodeType.CKDE, parents_type)) + " - " +
+                  str(local_score(node, parents, NodeType.GAUSSIAN, parents_type))
                   )
-        elif model.node_type[node] == HybridContinuousModel.NodeType.CKDE:
-            scores[node_index] = local_score(node, parents, HybridContinuousModel.NodeType.GAUSSIAN, parents_type) - \
-                                 local_score(node, parents, HybridContinuousModel.NodeType.CKDE, parents_type)
+        elif model.node_type[node] == NodeType.CKDE:
+            scores[node_index] = local_score(node, parents, NodeType.GAUSSIAN, parents_type) - \
+                                 local_score(node, parents, NodeType.CKDE, parents_type)
             print("Caching changing type of node " + node + " to Gaussian (" + str(scores[node_index]) + ")")
 
             str_p = ""
             for p in parents:
-                str_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
 
-            print("\t P([" + node + "," + HybridContinuousModel.NodeType.str(HybridContinuousModel.NodeType.GAUSSIAN) + "] | " + str_p + ") - " +
-                  "P([" + node + "," + HybridContinuousModel.NodeType.str(HybridContinuousModel.NodeType.CKDE) + "] | " + str_p + ") = " +
-                  str(local_score(node, parents, HybridContinuousModel.NodeType.GAUSSIAN, parents_type)) + " - " +
-                  str(local_score(node, parents, HybridContinuousModel.NodeType.CKDE, parents_type))
+            print("\t P([" + node + "," + NodeType.str(NodeType.GAUSSIAN) + "] | " + str_p + ") - " +
+                  "P([" + node + "," + NodeType.str(NodeType.CKDE) + "] | " + str_p + ") = " +
+                  str(local_score(node, parents, NodeType.GAUSSIAN, parents_type)) + " - " +
+                  str(local_score(node, parents, NodeType.CKDE, parents_type))
                   )
         else:
             raise ValueError("Wrong node type for HybridContinuousModel.")
@@ -255,11 +256,11 @@ class HybridCachedHillClimbing(StructureEstimator):
                 str_p = ""
                 str_p_new = ""
                 for p in parents:
-                    str_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in parents_new:
-                    str_p_new += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
-                print("\t P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                           "P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                print("\t P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
                       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
                       str(local_score(node, parents, node_type, model.node_type))
                       )
@@ -283,18 +284,18 @@ class HybridCachedHillClimbing(StructureEstimator):
                 str_p_new = ""
                 str_other_p_new = ""
                 for p in parents:
-                    str_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in parents_new:
-                    str_p_new += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in other_node_parents:
-                    str_other_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_other_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in other_node_parents_new:
-                    str_other_p_new += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_other_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
 
-                print("\t P([" + other_node + "," + HybridContinuousModel.NodeType.str(model.node_type[other_node]) + "] | " + str_other_p_new + ") + " +
-                           "P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                        "P([" + other_node + "," + HybridContinuousModel.NodeType.str(model.node_type[other_node]) + "] | " + str_other_p + ") - " +
-                        "P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                print("\t P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p_new + ") + " +
+                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                        "P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p + ") - " +
+                        "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
                       str(local_score(other_node, other_node_parents_new, other_node_type, model.node_type)) + " + " +
                       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
                       str(local_score(other_node, other_node_parents, other_node_type, model.node_type)) + " - " +
@@ -326,18 +327,18 @@ class HybridCachedHillClimbing(StructureEstimator):
                 str_p_new = ""
                 str_other_p_new = ""
                 for p in parents:
-                    str_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in parents_new:
-                    str_p_new += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in other_node_parents:
-                    str_other_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_other_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in other_node_parents_new:
-                    str_other_p_new += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_other_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
 
-                print("\t P([" + other_node + "," + HybridContinuousModel.NodeType.str(model.node_type[other_node]) + "] | " + str_other_p_new + ") + " +
-                           "P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                        "P([" + other_node + "," + HybridContinuousModel.NodeType.str(model.node_type[other_node]) + "] | " + str_other_p + ") - " +
-                        "P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                print("\t P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p_new + ") + " +
+                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                        "P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p + ") - " +
+                        "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
                       str(local_score(other_node, other_node_parents_new, other_node_type, model.node_type)) + " + " +
                       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
                       str(local_score(other_node, other_node_parents, other_node_type, model.node_type)) + " - " +
@@ -355,11 +356,11 @@ class HybridCachedHillClimbing(StructureEstimator):
                 str_p = ""
                 str_p_new = ""
                 for p in parents:
-                    str_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
                 for p in parents_new:
-                    str_p_new += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
-                print("\t P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                           "P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                print("\t P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
                       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
                       str(local_score(node, parents, node_type, model.node_type))
                       )
@@ -387,11 +388,11 @@ class HybridCachedHillClimbing(StructureEstimator):
         local_score = self.scoring_method.local_score
         node_type = model.node_type[node]
 
-        if node_type == HybridContinuousModel.NodeType.GAUSSIAN:
-            other_node_type = HybridContinuousModel.NodeType.CKDE
+        if node_type == NodeType.GAUSSIAN:
+            other_node_type = NodeType.CKDE
             print("Updating changing type of node " + node + " to CKDE", end='')
-        elif node_type == HybridContinuousModel.NodeType.CKDE:
-            other_node_type = HybridContinuousModel.NodeType.GAUSSIAN
+        elif node_type == NodeType.CKDE:
+            other_node_type = NodeType.GAUSSIAN
             print("Updating changing type of node " + node + " to Gaussian", end='')
         else:
             raise ValueError("Wrong node type detected on node {}.", node)
@@ -401,7 +402,7 @@ class HybridCachedHillClimbing(StructureEstimator):
         children = set(model.get_children(node))
 
         for child in children:
-            if model.node_type[child] == HybridContinuousModel.NodeType.CKDE:
+            if model.node_type[child] == NodeType.CKDE:
                 child_parents = set(model.get_parents(child))
                 new_parent_type = model.node_type.copy()
                 new_parent_type[node] = other_node_type
@@ -415,18 +416,18 @@ class HybridCachedHillClimbing(StructureEstimator):
         str_appendix_numbers = ""
         for child in children:
 
-            if model.node_type[child] == HybridContinuousModel.NodeType.CKDE:
+            if model.node_type[child] == NodeType.CKDE:
                 str_parents_child_new = ""
                 str_parents_child_old = ""
                 child_parents = model.get_parents(child)
                 for p in child_parents:
                     if p == node:
-                        str_parents_child_new += "[" + p + "," + HybridContinuousModel.NodeType.str(other_node_type) + "], "
-                    str_parents_child_old += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                        str_parents_child_new += "[" + p + "," + NodeType.str(other_node_type) + "], "
+                    str_parents_child_old += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
 
 
-                str_appendix_children += "P([" + child + "," + HybridContinuousModel.NodeType.str(model.node_type[child]) + "] | " + str_parents_child_new + ") - " + \
-                                         "P([" + child + "," + HybridContinuousModel.NodeType.str(model.node_type[child]) + "] | " + str_parents_child_old + ")"
+                str_appendix_children += "P([" + child + "," + NodeType.str(model.node_type[child]) + "] | " + str_parents_child_new + ") - " + \
+                                         "P([" + child + "," + NodeType.str(model.node_type[child]) + "] | " + str_parents_child_old + ")"
 
                 new_parent_type = model.node_type.copy()
                 new_parent_type[node] = other_node_type
@@ -439,9 +440,9 @@ class HybridCachedHillClimbing(StructureEstimator):
 
         str_p = ""
         for p in parents:
-            str_p += "[" + p +  "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
-        print("\t P([" + node + "," + HybridContinuousModel.NodeType.str(other_node_type) + "] | " + str_p + ") - " +
-              "P([" + node + "," + HybridContinuousModel.NodeType.str(node_type) + "] | " + str_p + ") " + str_appendix_children +
+            str_p += "[" + p +  "," + NodeType.str(model.node_type[p]) + "], "
+        print("\t P([" + node + "," + NodeType.str(other_node_type) + "] | " + str_p + ") - " +
+              "P([" + node + "," + NodeType.str(node_type) + "] | " + str_p + ") " + str_appendix_children +
               " = " +
               str(local_score(node, parents, other_node_type, model.node_type)) + " - " +
               str(local_score(node, parents, node_type, model.node_type)) + " + " + str_appendix_numbers
@@ -507,10 +508,10 @@ class HybridCachedHillClimbing(StructureEstimator):
         index = type_scores.argmax()
         node = self.nodes[index]
 
-        if model.node_type[node] == HybridContinuousModel.NodeType.GAUSSIAN:
-            return ("type", node, HybridContinuousModel.NodeType.CKDE, type_scores[index])
+        if model.node_type[node] == NodeType.GAUSSIAN:
+            return ("type", node, NodeType.CKDE, type_scores[index])
         else:
-            return ("type", node, HybridContinuousModel.NodeType.GAUSSIAN, type_scores[index])
+            return ("type", node, NodeType.GAUSSIAN, type_scores[index])
 
     def best_operator_arcs(self, model, scores):
         """
@@ -747,9 +748,9 @@ class HybridCachedHillClimbing(StructureEstimator):
 
             str_p = ""
             for p in parents:
-                str_p += "[" + p + "," + HybridContinuousModel.NodeType.str(model.node_type[p]) + "], "
+                str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
             print(
-                "P([" + node + "," + HybridContinuousModel.NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
                 str(self.scoring_method.local_score(node, parents, model.node_type[node], model.node_type))
             )
 

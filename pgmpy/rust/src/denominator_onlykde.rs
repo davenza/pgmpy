@@ -1,62 +1,77 @@
 use crate::{copy_buffers, empty_buffers};
 
-use crate::{GaussianKDE, Error, DoubleNumpyArray, get_max_work_size, max_gpu_vec_copy,
-            log_sum_gpu_vec, buffer_fill_value, max_gpu_mat, sum_gpu_mat};
+use crate::{
+    buffer_fill_value, get_max_work_size, log_sum_gpu_vec, max_gpu_mat, max_gpu_vec_copy,
+    sum_gpu_mat, DoubleNumpyArray, Error, GaussianKDE,
+};
 
+use libc::c_double;
 use ocl::{Buffer, ProQue};
-use libc::{c_double};
 
-use std::slice;
 use std::f64;
+use std::slice;
 
 #[no_mangle]
-pub unsafe extern "C" fn logdenominator_dataset_onlykde (
+pub unsafe extern "C" fn logdenominator_dataset_onlykde(
     kde: *mut GaussianKDE,
     pro_que: *mut ProQue,
     x: *const DoubleNumpyArray,
     precision: *const DoubleNumpyArray,
     result: *mut c_double,
     error: *mut Error,
-)
-{
+) {
     let mut kde_box = Box::from_raw(kde);
     let mut pro_que = Box::from_raw(pro_que);
     let m = *(*x).shape;
 
     *error = Error::NoError;
     if kde_box.n >= m {
-        logdenominator_iterate_test_onlykde(&mut kde_box, &mut pro_que, x, precision, result, error);
+        logdenominator_iterate_test_onlykde(
+            &mut kde_box,
+            &mut pro_que,
+            x,
+            precision,
+            result,
+            error,
+        );
     } else {
-        logdenominator_iterate_train_onlykde(&mut kde_box, &mut pro_que, x, precision, result, error);
+        logdenominator_iterate_train_onlykde(
+            &mut kde_box,
+            &mut pro_que,
+            x,
+            precision,
+            result,
+            error,
+        );
     }
 
     Box::into_raw(kde_box);
     Box::into_raw(pro_que);
 }
 
-unsafe fn logdenominator_iterate_test_onlykde(kde: &mut Box<GaussianKDE>,
-                                              pro_que: &mut Box<ProQue>,
-                                              x: *const DoubleNumpyArray,
-                                              precision: *const DoubleNumpyArray,
-                                              result: *mut c_double,
-                                              error: *mut Error)
-{
+unsafe fn logdenominator_iterate_test_onlykde(
+    kde: &mut Box<GaussianKDE>,
+    pro_que: &mut Box<ProQue>,
+    x: *const DoubleNumpyArray,
+    precision: *const DoubleNumpyArray,
+    result: *mut c_double,
+    error: *mut Error,
+) {
     let m = *(*x).shape;
     let d = kde.d;
     let nparents_kde = d - 1;
     let n = kde.n;
 
-    let test_slice = slice::from_raw_parts((*x).ptr, m*d);
+    let test_slice = slice::from_raw_parts((*x).ptr, m * d);
     let precision_slice = slice::from_raw_parts((*precision).ptr, (*precision).size);
 
     let (test_instances_buffer, precision_buffer) =
         copy_buffers!(pro_que, error, test_slice, precision_slice);
 
-
     let (ti_buffer, final_result_buffer, bi, ci) =
-        empty_buffers!(pro_que, error, f64, n*nparents_kde, m, n, n);
+        empty_buffers!(pro_que, error, f64, n * nparents_kde, m, n, n);
 
-    let a = 0.5*precision_slice[0];
+    let a = 0.5 * precision_slice[0];
 
     let max_work_size = get_max_work_size(&pro_que);
     let local_work_size = if n < max_work_size { n } else { max_work_size };
@@ -64,7 +79,7 @@ unsafe fn logdenominator_iterate_test_onlykde(kde: &mut Box<GaussianKDE>,
 
     let kernel_substract = pro_que
         .kernel_builder("substract_without_origin")
-        .global_work_size(n*nparents_kde)
+        .global_work_size(n * nparents_kde)
         .arg(&kde.training_data)
         .arg(&test_instances_buffer)
         .arg(&ti_buffer)
@@ -130,12 +145,29 @@ unsafe fn logdenominator_iterate_test_onlykde(kde: &mut Box<GaussianKDE>,
             .enq()
             .expect("Error while executing generate_exponents kernel.");
 
-        max_gpu_vec_copy(&pro_que, &bi, &ci,
-                         n, max_work_size, local_work_size, num_groups);
+        max_gpu_vec_copy(
+            &pro_que,
+            &bi,
+            &ci,
+            n,
+            max_work_size,
+            local_work_size,
+            num_groups,
+        );
 
-        log_sum_gpu_vec(&pro_que, &bi, &ci, n, max_work_size, local_work_size, num_groups);
+        log_sum_gpu_vec(
+            &pro_que,
+            &bi,
+            &ci,
+            n,
+            max_work_size,
+            local_work_size,
+            num_groups,
+        );
 
-        kernel_copy_logpdf_result.set_arg("res_offset", i as u32).unwrap();
+        kernel_copy_logpdf_result
+            .set_arg("res_offset", i as u32)
+            .unwrap();
         kernel_copy_logpdf_result
             .enq()
             .expect("Error while executing kernel_copy_logpdf_result kernel.");
@@ -149,17 +181,16 @@ unsafe fn logdenominator_iterate_test_onlykde(kde: &mut Box<GaussianKDE>,
         .read(final_result)
         .enq()
         .expect("Error reading result data.");
-
-
 }
 
-unsafe fn logdenominator_iterate_train_onlykde(kde: &mut Box<GaussianKDE>,
-                                               pro_que: &mut Box<ProQue>,
-                                               x: *const DoubleNumpyArray,
-                                               precision: *const DoubleNumpyArray,
-                                               result: *mut c_double,
-                                               error: *mut Error)
-{
+unsafe fn logdenominator_iterate_train_onlykde(
+    kde: &mut Box<GaussianKDE>,
+    pro_que: &mut Box<ProQue>,
+    x: *const DoubleNumpyArray,
+    precision: *const DoubleNumpyArray,
+    result: *mut c_double,
+    error: *mut Error,
+) {
     let m = *(*x).shape;
     let tmp_vec_buffer = Buffer::<f64>::builder()
         .context(pro_que.context())
@@ -167,23 +198,26 @@ unsafe fn logdenominator_iterate_train_onlykde(kde: &mut Box<GaussianKDE>,
         .build();
 
     match tmp_vec_buffer {
-        Ok(b) => logdenominator_iterate_train_high_memory_onlykde(kde, pro_que, x, precision, result, &b, error),
+        Ok(b) => logdenominator_iterate_train_high_memory_onlykde(
+            kde, pro_que, x, precision, result, &b, error,
+        ),
         Err(_) => {
             // TODO: If n < 2m, is it better to iterate over the training data?
-            logdenominator_iterate_train_low_memory_onlykde(kde, pro_que, x, precision, result, error);
+            logdenominator_iterate_train_low_memory_onlykde(
+                kde, pro_que, x, precision, result, error,
+            );
         }
     }
-
 }
 
-
-unsafe fn logdenominator_iterate_train_low_memory_onlykde(kde: &mut Box<GaussianKDE>,
-                                                          pro_que: &mut Box<ProQue>,
-                                                          x: *const DoubleNumpyArray,
-                                                          precision: *const DoubleNumpyArray,
-                                                          result: *mut c_double,
-                                                          error: *mut Error)
-{
+unsafe fn logdenominator_iterate_train_low_memory_onlykde(
+    kde: &mut Box<GaussianKDE>,
+    pro_que: &mut Box<ProQue>,
+    x: *const DoubleNumpyArray,
+    precision: *const DoubleNumpyArray,
+    result: *mut c_double,
+    error: *mut Error,
+) {
     let m = *(*x).shape;
     let d = kde.d;
     let nparents_kde = d - 1;
@@ -192,12 +226,13 @@ unsafe fn logdenominator_iterate_train_low_memory_onlykde(kde: &mut Box<Gaussian
     let test_slice = slice::from_raw_parts((*x).ptr, m * d);
     let precision_slice = slice::from_raw_parts((*precision).ptr, (*precision).size);
 
-    let (test_instances_buffer, precision_buffer) = copy_buffers!(pro_que, error, test_slice, precision_slice);
+    let (test_instances_buffer, precision_buffer) =
+        copy_buffers!(pro_que, error, test_slice, precision_slice);
 
     let (max_buffer, final_result_buffer, ti_buffer, bi, ci) =
-        empty_buffers!(pro_que, error, f64, m, m, m*nparents_kde, m, m);
+        empty_buffers!(pro_que, error, f64, m, m, m * nparents_kde, m, m);
 
-    let a = 0.5*precision_slice[0];
+    let a = 0.5 * precision_slice[0];
 
     buffer_fill_value(&pro_que, &max_buffer, m, f64::MIN);
     buffer_fill_value(&pro_que, &final_result_buffer, m, 0.0f64);
@@ -267,7 +302,6 @@ unsafe fn logdenominator_iterate_train_low_memory_onlykde(kde: &mut Box<Gaussian
         .build()
         .expect("Kernel log_and_sum build failed.");
 
-
     // Writes the max value in the max_buffer
     // TODO: Find max with euclidian distance is probably faster.
     for i in 0..n {
@@ -316,14 +350,15 @@ unsafe fn logdenominator_iterate_train_low_memory_onlykde(kde: &mut Box<Gaussian
         .expect("Error reading result data.");
 }
 
-unsafe fn logdenominator_iterate_train_high_memory_onlykde(kde: &mut Box<GaussianKDE>,
-                                                           pro_que: &mut Box<ProQue>,
-                                                           x: *const DoubleNumpyArray,
-                                                           precision: *const DoubleNumpyArray,
-                                                           result: *mut c_double,
-                                                           coefficients_buffer: &Buffer<f64>,
-                                                           error: *mut Error)
-{
+unsafe fn logdenominator_iterate_train_high_memory_onlykde(
+    kde: &mut Box<GaussianKDE>,
+    pro_que: &mut Box<ProQue>,
+    x: *const DoubleNumpyArray,
+    precision: *const DoubleNumpyArray,
+    result: *mut c_double,
+    coefficients_buffer: &Buffer<f64>,
+    error: *mut Error,
+) {
     let m = *(*x).shape;
     let d = kde.d;
     let nparents_kde = d - 1;
@@ -335,15 +370,24 @@ unsafe fn logdenominator_iterate_train_high_memory_onlykde(kde: &mut Box<Gaussia
 
     let test_slice = slice::from_raw_parts((*x).ptr, m * d);
     let precision_slice = slice::from_raw_parts((*precision).ptr, d * d);
-    let (test_instances_buffer, precision_buffer) = copy_buffers!(pro_que, error, test_slice, precision_slice);
-    let (max_buffer, final_result_buffer, ti_buffer, bi, ci) =
-        empty_buffers!(pro_que, error, f64, m * num_groups, m, m*nparents_kde, m, m);
+    let (test_instances_buffer, precision_buffer) =
+        copy_buffers!(pro_que, error, test_slice, precision_slice);
+    let (max_buffer, final_result_buffer, ti_buffer, bi, ci) = empty_buffers!(
+        pro_que,
+        error,
+        f64,
+        m * num_groups,
+        m,
+        m * nparents_kde,
+        m,
+        m
+    );
 
-    let a = 0.5*precision_slice[0];
+    let a = 0.5 * precision_slice[0];
 
     let kernel_substract = pro_que
         .kernel_builder("substract_without_origin")
-        .global_work_size(n*nparents_kde)
+        .global_work_size(n * nparents_kde)
         .arg(&test_instances_buffer)
         .arg(&kde.training_data)
         .arg(&ti_buffer)
@@ -351,7 +395,6 @@ unsafe fn logdenominator_iterate_train_high_memory_onlykde(kde: &mut Box<Gaussia
         .arg(nparents_kde as u32)
         .build()
         .expect("Kernel substract_without_origin build failed.");
-
 
     let kernel_mahalanobis = pro_que
         .kernel_builder("mahalanobis")
@@ -423,13 +466,28 @@ unsafe fn logdenominator_iterate_train_high_memory_onlykde(kde: &mut Box<Gaussia
             .expect("Error while executing fill_coefficients_mat kernel.");
     }
 
-    max_gpu_mat(&pro_que, coefficients_buffer, &max_buffer, m, n,
-                max_work_size, local_work_size, num_groups);
+    max_gpu_mat(
+        &pro_que,
+        coefficients_buffer,
+        &max_buffer,
+        m,
+        n,
+        max_work_size,
+        local_work_size,
+        num_groups,
+    );
     kernel_exp_and_sum
         .enq()
         .expect("Error while executing exp_and_sum_mat kernel.");
-    sum_gpu_mat(&pro_que, coefficients_buffer, m, n,
-                max_work_size, local_work_size, num_groups);
+    sum_gpu_mat(
+        &pro_que,
+        coefficients_buffer,
+        m,
+        n,
+        max_work_size,
+        local_work_size,
+        num_groups,
+    );
     kernel_log_and_sum
         .enq()
         .expect("Error while executing kernel log_and_sum_mat kernel.");

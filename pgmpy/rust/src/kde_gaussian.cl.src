@@ -1,3 +1,14 @@
+// Row major indexing for row i column j and leading dimension for the columns
+#define RM(i, j, leading) ((i)*(leading) + (j))
+// Column major indexing for row i column j and leading dimension for the rows
+#define CM(i, j, leading) ((j)*(leading) + (i))
+
+#define BASE_RM(i, j, leading) ((i)*(leading))
+#define BASE_CM(i, j, leading) (i)
+
+#define ADD_BASE_RM(i, j, leading) (j)
+#define ADD_BASE_CM(i, j, leading) ((j)*(leading))
+
 /**
 ##########################################
 ################  MISC  ##################
@@ -25,15 +36,37 @@ __kernel void sum_vectors(__global double *left, __constant double *right) {
 ##########################################
  */
 
-__kernel void substract(__constant double *train_data,
-                        __constant double *vec,
-                        __global double *res,
-                        __private uint row,
-                        __private uint n_col) {
+/**begin repeat
+ * #train_mode = rowmajor, columnmajor#
+ * #train_indexer = RM, CM#
+ * #find_column = %, /#
+ * #find_row = /, %#
+ */
+
+/**begin repeat1
+ * #test_mode = rowmajor, columnmajor#
+ * #test_indexer = RM, CM#
+ */
+
+__kernel void substract_@train_mode@_@test_mode@(__constant double *train_data,
+                                            __private uint train_cols,
+                                            __constant double *vec,
+                                            __global double *res,
+                                            __private uint row,
+                                            __private uint train_leading_dimension,
+                                            __private uint test_leading_dimension)
+{
     int i = get_global_id(0);
-    int c = i % n_col;
-    res[i] = train_data[i] - vec[row*n_col + c];
+
+    int r = i @find_row@ train_leading_dimension;
+    int c = i @find_column@ train_leading_dimension;
+
+    res[RM(r, c, train_cols)] = train_data[i] - vec[@test_indexer@(row, c, test_leading_dimension)];
 }
+
+/**end repeat1**/
+
+/**end repeat**/
 
 __kernel void solve(__global double *diff_data, __constant double *chol, __private uint n_col) {
     uint r = get_global_id(0);
@@ -49,7 +82,8 @@ __kernel void solve(__global double *diff_data, __constant double *chol, __priva
 
 __kernel void square(__global double *solve_data) {
     uint idx = get_global_id(0);
-    solve_data[idx] = solve_data[idx] * solve_data[idx];
+    double d = solve_data[idx];
+    solve_data[idx] = d * d;
 }
 
 /**
@@ -697,16 +731,15 @@ __kernel void coefficients_sum_onlykde(__constant double* training_dataset,
 }
 
 __kernel void coefficients_sum(__constant double* training_dataset,
-                                       __private double inv_a,
-                                       __constant double* bi,
-                                       __constant double* ci,
-                                       __constant double* precision,
-                                       __private double b_gaussian,
-                                       __private double c_gaussian,
-                                       __constant double* max_vec,
-                                       __global double* final_result,
-                                        __private uint total_columns
-)
+                               __private double inv_a,
+                               __constant double* bi,
+                               __constant double* ci,
+                               __constant double* precision,
+                               __private double b_gaussian,
+                               __private double c_gaussian,
+                               __constant double* max_vec,
+                               __global double* final_result,
+                               __private uint total_columns)
 {
     uint idx = get_global_id(0);
     double tk = training_dataset[idx*total_columns];
@@ -718,3 +751,61 @@ __kernel void coefficients_sum(__constant double* training_dataset,
 
     final_result[idx] += exp(coefficient - max_vec[idx]);
 }
+
+/**
+##########################################
+# Denominator Only Gaussian #
+##########################################
+*/
+
+/**begin repeat
+ * #mode = rowmajor, columnmajor#
+ * #indexer = RM, CM#
+ */
+__kernel void s1_and_s3_sum_parents_@mode@(__constant double* test_dataset,
+                                        __private uint leading_dimension,
+                                        __constant double* beta,
+                                        __private uint variable_index,
+                                        __constant uint* evidence_index,
+                                        __private uint len_evidence,
+                                        __private double inv_variance,
+                                        __global double* s1,
+                                        __global double* s3
+)
+{
+    uint row = get_global_id(0);
+    double Cj = beta[0];
+
+    uint base_pos = BASE_@indexer@(row, 0, leading_dimension);
+
+    for(int i = 0; i < len_evidence; i++) {
+        Cj += beta[evidence_index[i]+1]*test_dataset[base_pos + ADD_BASE_@indexer@(row, i, leading_dimension)];
+    }
+
+    double diff = (Cj - test_dataset[base_pos + ADD_BASE_@indexer@(row, variable_index, leading_dimension)]);
+
+    s1[row] += beta[1]*diff*inv_variance;
+    s3[row] += diff*diff*inv_variance;
+}
+
+
+__kernel void s1_and_s3_sum_constant_@mode@(__constant double* test_dataset,
+                                        __private uint leading_dimension,
+                                        __constant double* beta,
+                                        __private uint variable_index,
+                                        __private double inv_variance,
+                                        __global double* s1,
+                                        __global double* s3
+)
+{
+    uint row = get_global_id(0);
+    double Cj = beta[0];
+
+    printf("Gj %u = %.08f", row, test_dataset[@indexer@(row, variable_index, leading_dimension)]);
+    double diff = (Cj - test_dataset[@indexer@(row, variable_index, leading_dimension)]);
+    s1[row] += beta[1]*diff*inv_variance;
+    s3[row] += diff*diff*inv_variance;
+}
+
+/**end repeat**/
+// Don't let /**end repeat**/ to be the last line: conv_template.py won't work.

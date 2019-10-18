@@ -4,7 +4,7 @@ import numpy as np
 
 from pgmpy.estimators import ParameterEstimator
 from pgmpy.factors.discrete import TabularCPD
-from pgmpy.factors.continuous import LinearGaussianCPD, CKDE_CPD
+from pgmpy.factors.continuous import LinearGaussianCPD, NodeType, CKDE_CPD
 from pgmpy.models import BayesianModel, LinearGaussianBayesianNetwork, HybridContinuousModel
 
 
@@ -127,9 +127,9 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         if isinstance(self.model, LinearGaussianBayesianNetwork):
             return self.gaussian_estimate(node)
         elif isinstance(self.model, HybridContinuousModel):
-            if self.model.node_type[node] == HybridContinuousModel.NodeType.GAUSSIAN:
+            if self.model.node_type[node] == NodeType.GAUSSIAN:
                 return self.gaussian_estimate(node)
-            elif self.model.node_type[node] == HybridContinuousModel.NodeType.CKDE:
+            elif self.model.node_type[node] == NodeType.CKDE:
                 return self.ckde_estimate(node)
         elif isinstance(self.model, BayesianModel):
             return self.discrete_estimate(node)
@@ -207,7 +207,7 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         ckde_parents = []
 
         for parent in parents:
-            if parent_types[parent] == HybridContinuousModel.NodeType.GAUSSIAN:
+            if parent_types[parent] == NodeType.GAUSSIAN:
                 gaussian_parents.append(parent)
             else:
                 ckde_parents.append(parent)

@@ -3,33 +3,32 @@ import numpy as np
 np.random.seed(0)
 import pandas as pd
 
-from pgmpy.models import HybridContinuousModel
 from pgmpy.estimators import MaximumLikelihoodEstimator
-
+from pgmpy.factors.continuous import NodeType
 
 # Example Gaussian data a -> c <- b
-def basic_data():
+def basic_data_f():
     a = np.random.normal(0, 1, 5000)
     b = np.random.normal(3.2, np.sqrt(1.8), 5000)
     c = -1.2 + 2.3*a + 1.5*b + np.random.normal(0, np.sqrt(0.5), 5000)
     data = pd.DataFrame({'a': a, 'b': b, 'c': c})
     return data
 
-basic_data = basic_data()
+basic_data = basic_data_f()
 
-def discrete_data():
+def discrete_data_f():
     return pd.DataFrame(np.random.randint(0, 5, size=(5000, 9)), columns=list('ABCDEFGHI'))
 
-discrete_data = discrete_data()
+discrete_data = discrete_data_f()
 
-def ecoli_data():
+def ecoli_data_f():
     ecoli_data = pd.read_csv('ecoli_data.csv')
     ecoli_data.set_index("index", inplace=True)
     return ecoli_data
 
-ecoli_data = ecoli_data()
+ecoli_data = ecoli_data_f()
 
-def mixture_data(n_instances):
+def mixture_data_f(n_instances):
     a = np.random.normal(0, 1, n_instances)
     b = np.random.normal(3.2, np.sqrt(1.8), n_instances)
 
@@ -41,7 +40,7 @@ def mixture_data(n_instances):
     data = pd.DataFrame({'a': a, 'b': b, 'c': c})
     return data
 
-mixture_data = mixture_data(500)
+mixture_data = mixture_data_f(500)
 
 def to_bnlearn_str(graph):
     for node in graph.nodes:
@@ -76,13 +75,14 @@ if __name__ == '__main__':
     # bn = hc.estimate()
 
 
-    ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents('c', ['a'], {'a': HybridContinuousModel.NodeType.GAUSSIAN},
+    ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents('c', ['a'], {'a': NodeType.GAUSSIAN},
                                                                  mixture_data[['c', 'a']])
 
     # data = [[3.2, 0.5], [8000, 0.5]]
     # df = pd.DataFrame(data, columns=['c', 'a'])
+    mixture_small = mixture_data_f(10)
 
-    # print(ckde._logdenominator_dataset_python(df))
+    print(ckde.logpdf_dataset(mixture_small))
     # print(np.sum(ckde._logdenominator_dataset(df)))
 
     # print("=======================")

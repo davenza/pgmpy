@@ -119,4 +119,40 @@ macro_rules! empty_buffers {
             )
         }
     };
+
+    ($pro_que:expr, $error:expr, $type:ty, $($len:expr),+ => $ret:expr) => {
+        {
+
+            (
+                $(
+                    match Buffer::<$type>::builder().context($pro_que.context()).len($len).build() {
+                        Ok(b) => b,
+                        Err(_) => {
+                            *$error = Error::MemoryError;
+                            return $ret;
+                        }
+                    },
+                )+
+            )
+        }
+    };
+}
+
+
+#[macro_export]
+macro_rules! print_buffers {
+    ($pro_que:expr, $($buffer:expr),+) => {
+        $(
+            let len_buffer = $buffer.len();
+            let mut vec = vec![Default::default(); len_buffer];
+            $buffer
+            .cmd()
+            .queue($pro_que.queue())
+            .read(&mut vec)
+            .enq()
+            .expect("Error reading result data.");
+
+            println!("{} = {:?}", stringify!($buffer), vec);
+        )+
+    };
 }

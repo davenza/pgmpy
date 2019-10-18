@@ -9,7 +9,7 @@ from pgmpy.estimators import StructureScore
 from sklearn.model_selection import KFold
 
 from pgmpy.estimators import MaximumLikelihoodEstimator
-from pgmpy.models import HybridContinuousModel
+from pgmpy.factors.continuous import NodeType
 
 class PredictiveLikelihood(StructureScore):
     def __init__(self, data, k=10, seed=0, **kwargs):
@@ -29,9 +29,9 @@ class PredictiveLikelihood(StructureScore):
 
         for train_indices, test_indices in self.fold_indices:
             train_data = node_data.iloc[train_indices]
-            if variable_type == HybridContinuousModel.NodeType.GAUSSIAN:
+            if variable_type == NodeType.GAUSSIAN:
                 cpd = MaximumLikelihoodEstimator.gaussian_estimate_with_parents(variable, parents, train_data)
-            elif variable_type == HybridContinuousModel.NodeType.CKDE:
+            elif variable_type == NodeType.CKDE:
                 cpd = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, parents, parent_types, train_data)
             else:
                 raise ValueError("Wrong node type for HybridContinuousModel.")

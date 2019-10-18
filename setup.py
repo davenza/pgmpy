@@ -10,8 +10,11 @@ import pgmpy
 
 import sys
 import os
-
+import glob
+from distutils import log
 import shutil
+
+from numpy.distutils.conv_template import process_file as process_c_file
 
 os.environ['CFLAGS'] = "-march=native"
 
@@ -31,7 +34,7 @@ def check_rust_bitness():
 
     if python_bitness == "32bit":
         if not "i686" in toolchain:
-            print("WARNING: Python interpreter is 32-bit, while default Rust target toolchain is not 32-bit.\n"
+            log.warn("WARNING: Python interpreter is 32-bit, while default Rust target toolchain is not 32-bit.\n"
                             "\tUse \"rustup target list\" to list all the available Rust target toolchains.\n"
                             "\tUse \"rustup target add {toolchain_name}\" to include a compatible Rust target toolchain.\n"
                             "\tUse \"rustup default {toolchain_name}\" to set a default target toolchain.\n",
@@ -39,14 +42,26 @@ def check_rust_bitness():
 
     if python_bitness == "64bit":
         if not "64" in toolchain:
-            print("WARNING: Python interpreter is 64-bit, while default Rust target toolchain is not 64-bit.\n"
+            log.warn("WARNING: Python interpreter is 64-bit, while default Rust target toolchain is not 64-bit.\n"
                             "\tUse \"rustup target list\" to list all the available Rust target toolchains.\n"
                             "\tUse \"rustup target add {toolchain_name}\" to include a compatible Rust target toolchain.\n"
                             "\tUse \"rustup default {toolchain_name}\" to set a default target toolchain.\n",
                    file=sys.stderr)
 
+def expand_sources(target_dir):
+    sources = glob.glob(os.path.join(target_dir, "*.src"))
+
+    for source in sources:
+        (base, _) = os.path.splitext(source)
+        log.info("conv_template:> %s" % (source))
+        outstr = process_c_file(source)
+        with open(base, 'w') as fid:
+            fid.write(outstr)
+
 def build_native(spec):
     check_rust_bitness()
+
+    expand_sources('./pgmpy/rust/src')
 
     build = spec.add_external_build(
         cmd=['cargo', 'build', '--release'],
@@ -59,7 +74,6 @@ def build_native(spec):
         header_filename=lambda: build.find_header('kde-ocl-sys.h', in_path='target'),
         rtld_flags=['NOW', 'NODELETE']
     )
-
 
 class CleanCommand(distutils.cmd.Command):
     """
@@ -80,7 +94,8 @@ class CleanCommand(distutils.cmd.Command):
                            "pgmpy/factors/continuous/CKDE_CPD/_ffi__ffi.py",
                            "pgmpy/factors/continuous/CKDE_CPD/_ffi__lib.so",
                            "pgmpy/factors/continuous/CKDE_CPD/_ffi__lib.pyd",
-                           "pgmpy/rust/src/open_cl_code.rs"]
+                           "pgmpy/rust/src/open_cl_code.rs",
+                           "pgmpy/rust/src/kde_gaussian.cl"]
 
         for file in files_to_delete:
             if os.path.exists(file):

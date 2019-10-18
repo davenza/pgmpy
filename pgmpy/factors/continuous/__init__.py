@@ -3,6 +3,8 @@ from .ContinuousFactor import ContinuousFactor
 from .LinearGaussianCPD import LinearGaussianCPD
 from pgmpy.factors.continuous.CKDE_CPD import CKDE_CPD
 from .discretize import BaseDiscretizer, RoundingDiscretizer, UnbiasedDiscretizer
+from .NodeType import NodeType
+
 
 __all__ = [
     "CanonicalDistribution",
@@ -11,5 +13,6 @@ __all__ = [
     "BaseDiscretizer",
     "RoundingDiscretizer",
     "UnbiasedDiscretizer",
+    "NodeType",
     "CKDE_CPD"
 ]
