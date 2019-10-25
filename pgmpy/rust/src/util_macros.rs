@@ -138,7 +138,6 @@ macro_rules! empty_buffers {
     };
 }
 
-
 #[macro_export]
 macro_rules! print_buffers {
     ($pro_que:expr, $($buffer:expr),+) => {

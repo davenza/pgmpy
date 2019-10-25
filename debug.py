@@ -40,7 +40,7 @@ def mixture_data_f(n_instances):
     data = pd.DataFrame({'a': a, 'b': b, 'c': c})
     return data
 
-mixture_data = mixture_data_f(500)
+mixture_data = mixture_data_f(10)
 
 def to_bnlearn_str(graph):
     for node in graph.nodes:
@@ -74,15 +74,28 @@ if __name__ == '__main__':
     # hc = HybridCachedHillClimbing(mixture_data)
     # bn = hc.estimate()
 
+    # print("train_dataset = ")
+    # print(mixture_data)
+    # ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.GAUSSIAN},
+    #                                                              mixture_data[['c', 'a', 'b']])
+    #
 
-    ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents('c', ['a'], {'a': NodeType.GAUSSIAN},
-                                                                 mixture_data[['c', 'a']])
+    # print(ckde.logpdf_dataset(mixture_small))
 
-    # data = [[3.2, 0.5], [8000, 0.5]]
-    # df = pd.DataFrame(data, columns=['c', 'a'])
-    mixture_small = mixture_data_f(10)
+    print("train dataset = ")
+    print(mixture_data)
 
+
+    ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.CKDE},
+                                                                 mixture_data[['c', 'a', 'b']])
+
+    print("precision = " + str(ckde.inv_cov))
+
+    mixture_small = mixture_data_f(100000000)
     print(ckde.logpdf_dataset(mixture_small))
+
+
+
     # print(np.sum(ckde._logdenominator_dataset(df)))
 
     # print("=======================")

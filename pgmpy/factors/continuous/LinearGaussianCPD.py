@@ -104,9 +104,9 @@ class LinearGaussianCPD(BaseFactor):
 
 
     def logpdf_dataset(self, dataset):
-        means = self.beta[0] + np.sum(self.beta[1:]*dataset.iloc[:,1:], axis=1)
+        means = self.beta[0] + np.sum(self.beta[1:]*dataset.loc[:,self.evidence], axis=1)
 
-        return norm.logpdf(dataset.iloc[:,0], means, self.variance).sum()
+        return norm.logpdf(dataset.loc[:,self.variable], means, self.variance).sum()
 
     def copy(self):
         """

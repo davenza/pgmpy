@@ -13,6 +13,10 @@ from scipy.special import logsumexp
 from ._ffi import ffi, lib
 import atexit
 
+from math import log, pi
+
+from time import time
+
 class _CFFIDoubleArray(object):
     def __init__(self, array, ffi):
         self.shape = ffi.new("size_t[]", array.shape)
@@ -59,22 +63,7 @@ class CKDE_CPD(BaseFactor):
         self.gaussian_cpds = gaussian_cpds
         self.n_gaussian = len(gaussian_cpds)
 
-        self.gaussian_indices = []
-
-        for gaussian_cpd in self.gaussian_cpds:
-            tmp = []
-            tmp.append(self.evidence.index(gaussian_cpd.variable) + 1)
-            for e in gaussian_cpd.evidence:
-                if e != variable:
-                    tmp.append(self.evidence.index(e) + 1)
-                else:
-                    tmp.append(0)
-
-            self.gaussian_indices.append(tmp)
-
-            # self.gaussian_indices.append([self.evidence.index(e) + 1 if e != variable else 0 for e in gaussian_cpd.evidence])
-
-        self.kde_instances = np.atleast_2d(kde_instances.to_numpy())
+        self.kde_instances = np.atleast_2d(kde_instances.loc[:,[self.variable] + self.kde_evidence].to_numpy())
         if self.kde_instances.shape[0] == 1:
             self.kde_instances = self.kde_instances.T
 
@@ -150,7 +139,16 @@ class CKDE_CPD(BaseFactor):
         precision = ffi.cast("double*", self.inv_cov.ctypes.data)
 
         error = ffi.new("Error*", 0)
-        ckde = lib.ckde_init(self.pro_que, self.kdedensity, precision, self._ffi_gaussian_regressors, len(self.gaussian_cpds), error)
+
+        lognorm_factor = self._logdenominator_factor()
+
+        ckde = lib.ckde_init(self.pro_que,
+                             self.kdedensity,
+                             precision,
+                             self._ffi_gaussian_regressors,
+                             len(self.gaussian_cpds),
+                             lognorm_factor, error)
+
         if error[0] == Error.MemoryError:
             raise MemoryError("Memory error allocating space in the OpenCL device.")
 
@@ -160,6 +158,24 @@ class CKDE_CPD(BaseFactor):
         for gr in self._gaussian_regressors:
             ffi.gc(gr, None)
 
+    def _logdenominator_factor(self):
+        s2 = 0
+        logvar = 0
+        for gaussian_cpd in self.gaussian_cpds:
+            Bjk = gaussian_cpd.beta[gaussian_cpd.evidence.index(self.variable)+1]
+            s2 += Bjk*Bjk / gaussian_cpd.variance
+            logvar += 0.5*log(gaussian_cpd.variance)
+
+        a = 0.5*(self.inv_cov[0,0] + s2)
+
+        return 0.5*log(pi) - \
+               log(self.n) - \
+               0.5*log(a) - \
+               0.5*(len(self.evidence) + 1)*log(2*pi) - \
+               0.5*log(np.linalg.det(self.covariance)) - \
+               logvar
+
+
     def _init_gaussian_regressors(self):
         self._ffi_gaussian_regressors = ffi.new("GaussianRegression*[]", self.n_gaussian)
         # Avoid freeing GaussianRegression before the CKDE is freed.
@@ -167,13 +183,10 @@ class CKDE_CPD(BaseFactor):
 
         error = ffi.new("Error*", 0)
         for idx, gaussian_cpd in enumerate(self.gaussian_cpds):
-            evidence_index = np.empty((len(gaussian_cpd.evidence)-1,), dtype=np.uint32)
-
-            for ev_idx, e in enumerate(gaussian_cpd.evidence):
-                if e != self.variable:
-                    evidence_index[ev_idx] = self.evidence.index(e)+1
+            evidence_index = np.asarray([self.evidence.index(e)+1 for e in gaussian_cpd.evidence if e != self.variable], dtype=np.uint32)
 
             evidence_index_ptr = ffi.cast("unsigned int*", evidence_index.ctypes.data)
+
             beta_ptr = ffi.cast("double*", gaussian_cpd.beta.ctypes.data)
 
             gr = lib.gaussian_regression_init(self.pro_que,
@@ -246,14 +259,28 @@ class CKDE_CPD(BaseFactor):
     def logpdf_dataset(self, dataset):
         prob = 0
         for i, gaussian_cpd in enumerate(self.gaussian_cpds):
-            indices = self.gaussian_indices[i]
-            subset_data = dataset.iloc[:, indices]
-            prob += gaussian_cpd.logpdf_dataset(subset_data)
+            prob += gaussian_cpd.logpdf_dataset(dataset)
 
         prob += self.kde_logpdf(dataset.loc[:,[self.variable] + self.kde_evidence]).sum()
 
-        prob -= self._logdenominator_dataset_python(dataset)
-        prob -= self._logdenominator_dataset(dataset)
+        start = time()
+        py_denominator = self._logdenominator_dataset_python(dataset[:10])
+        end = time()
+        py_time = end-start
+        print("Python implementation: " + str(py_time))
+
+        reorder_dataset = dataset.loc[:, [self.variable] + self.evidence]
+        start = time()
+        rust_denominator = self._logdenominator_dataset(reorder_dataset)[:10].sum()
+        end = time()
+        rust_time = end-start
+        print("Rust implementation: " + str(rust_time))
+        print("Ratio: " + str(py_time / rust_time))
+
+        print("Python: " + str(py_denominator))
+        print("Rust: " + str(rust_denominator))
+
+        prob -= py_denominator
 
         return prob
 
@@ -284,21 +311,24 @@ class CKDE_CPD(BaseFactor):
 
 
     def _logdenominator_dataset_onlykde(self, dataset):
+        points = np.atleast_2d(dataset.to_numpy())
+        m, _ = points.shape
 
-        a = 0.5*self.inv_cov[0,0]
-        cte = dataset.shape[0]*(0.5*np.log(np.pi) -
-                                np.log(self.kde_instances.shape[0]) -
-                                0.5*np.log(a) -
-                                0.5*(self.n_kde + 1)*np.log(2*np.pi) -
-                                0.5*np.log(np.linalg.det(self.covariance))
-                                )
-
-        return cte + lib.denominator_onlykde(dataset.values)
+        result = np.empty((m,), dtype=np.float64)
+        cffi_points = _CFFIDoubleArray(points, ffi)
+        cffi_result = ffi.cast("double *", result.ctypes.data)
+        error = ffi.new("Error*", 0)
+        lib.logdenominator_dataset_onlykde(self.ckde, self.pro_que, cffi_points.c_ptr(), cffi_result, error)
+        if error[0] == Error.MemoryError:
+            raise MemoryError("Memory error allocating space in the OpenCL device.")
+        return result
 
     def _logdenominator_dataset_mix(self, dataset):
         pass
 
     def _logdenominator_dataset_python(self, dataset):
+        dataset = dataset.loc[:, [self.variable] + self.evidence]
+
         covariance = self.covariance
         precision = self.inv_cov
 
@@ -307,7 +337,7 @@ class CKDE_CPD(BaseFactor):
         for gaussian_cpd in self.gaussian_cpds:
             k_index = gaussian_cpd.evidence.index(self.variable)
             a += (gaussian_cpd.beta[k_index+1] * gaussian_cpd.beta[k_index+1]) / gaussian_cpd.variance
-            logvar_mult += np.log(np.sqrt(gaussian_cpd.variance))
+            logvar_mult += 0.5*np.log(gaussian_cpd.variance)
 
         a *= 0.5
 
@@ -327,6 +357,8 @@ class CKDE_CPD(BaseFactor):
         s3 = np.zeros((dataset.shape[0],))
         Cj_arr = np.zeros((dataset.shape[0],))
         Gj_arr = np.zeros((dataset.shape[0],))
+        final = np.zeros((dataset.shape[0],))
+        max_array = np.zeros((dataset.shape[0],))
 
         print("dataset =")
         print(dataset)
@@ -345,10 +377,16 @@ class CKDE_CPD(BaseFactor):
                 Bjk = gaussian_cpd.beta[k_index+1]
                 Gj = dataset.iloc[i, self.evidence.index(gaussian_cpd.variable)+1]
 
-                indices = self.gaussian_indices[j]
-                subset_data = dataset.iloc[i, indices].values
-                Cj = gaussian_cpd.beta[0] + np.dot(gaussian_cpd.beta[1:], subset_data[1:]) - Bjk*dataset.iloc[i,0]
+                subset_data = dataset.loc[i, gaussian_cpd.evidence].values
+                Cj = gaussian_cpd.beta[0] + np.dot(gaussian_cpd.beta[1:], subset_data) - Bjk*dataset.loc[i,self.variable]
 
+                # for b, s in zip(gaussian_cpd.beta[1:], subset_data):
+                #     print("Adding beta " + str(b) + " * test " + str(s))
+                # print("Substracting beta " + str(Bjk) + " * test " + str(dataset.loc[i,self.variable]))
+
+
+                # print("beta0 = " + str(gaussian_cpd.beta[0]))
+                # print("Cj = " + str(Cj))
                 diff = Cj - Gj
 
 
@@ -356,19 +394,21 @@ class CKDE_CPD(BaseFactor):
                 ci += (diff * diff) / gaussian_cpd.variance
 
                 s1[i] += (Bjk * diff) / gaussian_cpd.variance
+                # print("s1 partial = " + str(s1))
                 s3[i] += diff*diff / gaussian_cpd.variance
+                # print("s3 partial = " + str(s3))
 
                 Cj_arr[i] = Cj
                 Gj_arr[i] = Gj
 
-
             ci *= -0.5
+
+            max_array[i] = np.max(((bi*bi) / (4*a)) + ci)
+            final[i] = logsumexp(((bi*bi) / (4*a)) + ci)
             prob += logsumexp(((bi*bi) / (4*a)) + ci)
 
-        print("s1 = " + str(s1))
-        print("s3 = " + str(s3))
-        print("Cj = " + str(Cj_arr))
-        print("Gj = " + str(Gj_arr))
+        print("max = " + str(max_array[:10]))
+        print("final = " + str(final))
         return cte + prob
 
     def copy(self):

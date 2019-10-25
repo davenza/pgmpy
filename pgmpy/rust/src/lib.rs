@@ -95,14 +95,13 @@ use std::mem;
 use std::ptr;
 use std::slice;
 
-mod denominator_onlygaussian;
-pub use denominator_onlygaussian::{
-    ckde_free, ckde_init, gaussian_regression_free, gaussian_regression_init, GaussianRegression,
-};
+mod denominator;
+pub use denominator::logdenominator_dataset_gaussian;
+//pub use denominator_onlygaussian::{
+//    ckde_free, ckde_init, gaussian_regression_free, gaussian_regression_init, GaussianRegression,
+//};
 
-mod denominator_onlykde;
-
-pub use denominator_onlykde::logdenominator_dataset_onlykde;
+//pub use denominator_onlykde::logdenominator_dataset_onlykde;
 
 mod open_cl_code;
 
@@ -1388,9 +1387,10 @@ unsafe fn logpdf_iterate_train_high_memory(
 
     let kernel_exp_and_sum = pro_que
         .kernel_builder("exp_and_sum_mat")
-        .global_work_size((m, n))
+        .global_work_size(m * n)
         .arg(tmp_vec_buffer)
         .arg(&max_buffer)
+        .arg(n as u32)
         .arg(num_groups as u32)
         .build()
         .expect("Kernel exp_and_sum_mat build failed.");
@@ -1516,6 +1516,7 @@ fn max_gpu_mat(
     } else {
         max_work_size
     };
+
     let matrix_actual_cols = num_groups;
     num_groups = (n_cols as f32 / local_size as f32).ceil() as usize;
 
