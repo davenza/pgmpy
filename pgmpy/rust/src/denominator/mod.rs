@@ -1,4 +1,4 @@
-use crate::{empty_buffers, copy_buffers, print_buffers, Error, GaussianKDE, gaussian_kde_free};
+use crate::{empty_buffers, copy_buffers, Error, GaussianKDE, gaussian_kde_free};
 
 
 use std::slice;
@@ -33,7 +33,6 @@ pub unsafe extern "C" fn gaussian_regression_init(
     variance: c_double,
     error: *mut Error,
 ) -> *mut GaussianRegression {
-    println!("Init GaussianRegression");
     let mut pro_que = Box::from_raw(pro_que);
 
     let beta_slice = slice::from_raw_parts(beta, (nparents + 1) as usize);
@@ -65,7 +64,6 @@ pub unsafe extern "C" fn gaussian_regression_init(
 
 #[no_mangle]
 pub unsafe extern "C" fn gaussian_regression_free(gr: *mut GaussianRegression) {
-    println!("Free GaussianRegression");
     if gr.is_null() {
         return;
     }
@@ -94,7 +92,6 @@ pub unsafe extern "C" fn ckde_init(
     lognorm_factor: f64,
     error: *mut Error,
 ) -> *mut CKDE {
-    println!("Init CKDE");
 
     let d = (*kde).d;
     let mut pro_que = Box::from_raw(pro_que);
@@ -102,7 +99,13 @@ pub unsafe extern "C" fn ckde_init(
     let precision_slice = slice::from_raw_parts(precision, d * d);
 
     let (precision_buffer,) = copy_buffers!(pro_que, error, precision_slice => ptr::null_mut());
-    let (onlykde_precision,) = empty_buffers!(pro_que, error, f64, (d-1)*(d-1) => ptr::null_mut());
+
+    let (onlykde_precision,) = if d > 1 {
+        empty_buffers!(pro_que, error, f64, (d-1)*(d-1) => ptr::null_mut())
+    } else {
+//        Create a dummy buffer.
+        empty_buffers!(pro_que, error, f64, 1 => ptr::null_mut())
+    };
 
     let kernel_precompute_onlykde_precision =  pro_que
         .kernel_builder("precompute_marginal_precision")
@@ -117,8 +120,6 @@ pub unsafe extern "C" fn ckde_init(
     kernel_precompute_onlykde_precision
         .enq()
         .expect("Error while executing substract_without_origin kernel.");
-
-    print_buffers!(pro_que, onlykde_precision);
 
     let ckde = Box::new(CKDE {
         kde,
@@ -137,22 +138,9 @@ pub unsafe extern "C" fn ckde_init(
 
 #[no_mangle]
 pub unsafe extern "C" fn ckde_free(ckde: *mut CKDE) {
-    println!("Free CKDE");
-
     if ckde.is_null() {
         return;
     }
 
-    let ckde = Box::from_raw(ckde);
-    let kde_ptr = ckde.kde;
-    let regressions = ckde.regressions;
-    let nregressions = ckde.nregressions;
-
-    mem::drop(ckde);
-
-    gaussian_kde_free(kde_ptr);
-
-    for i in 0..nregressions {
-        gaussian_regression_free(*regressions.offset(i as isize));
-    }
+    Box::from_raw(ckde);
 }

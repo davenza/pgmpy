@@ -513,9 +513,9 @@ __kernel void log_and_sum_mat(__global double* res,
 }
 
 /**
-##############################################
-############### Denominator KDE ##############
-##############################################
+##########################################
+########## Denominator Only KDE ##########
+##########################################
 */
 
 /**begin repeat
@@ -862,21 +862,13 @@ __kernel void onlykde_exponent_coefficients_iterate_train_low_memory_compute(__g
 
     barrier(CLK_LOCAL_MEM_FENCE);
     if (lid == 0) {
-        if (instance < 10) {
-            printf("final_result[%d] += exp(sums_buffer[0] (%f) - max_buffer[%d] (%f) = %f",
-                    instance, sums_buffer[0], instance, max_buffer[instance],
-                    exp(sums_buffer[0] - max_buffer[instance]));
-        }
-
-        final_result[instance] += exp(sums_buffer[0] - max_buffer[instance]);
+        final_result[instance] += exp(0.5*sums_buffer[0] - max_buffer[instance]);
     }
 }
 
-
-
 /**
 ##########################################
-# Denominator Only Gaussian #
+####### Denominator Only Gaussian ########
 ##########################################
 */
 

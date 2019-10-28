@@ -1,6 +1,6 @@
 use crate::{empty_buffers, copy_buffers, Error, DoubleNumpyArray, buffer_fill_value,
             get_max_work_size, is_rowmajor, max_gpu_vec_copy, log_sum_gpu_vec, max_gpu_mat,
-            sum_gpu_mat, print_buffers};
+            sum_gpu_mat};
 
 use crate::denominator::{CKDE};
 
@@ -220,7 +220,6 @@ unsafe fn logdenominator_iterate_train_low_memory_onlykde(
     coeffs: &Buffer<f64>,
     error: *mut Error,
 ) {
-    println!("Iterate low memory");
     let kde = Box::from_raw(ckde.kde);
 
     let m = *(*x).shape;
@@ -313,24 +312,7 @@ unsafe fn logdenominator_iterate_train_low_memory_onlykde(
             .expect("Error while executing onlykde_exponent_coefficients_iterate_train_low_memory_checkmax kernel.");
     }
 
-
-    let len_buffer = max_buffer.len();
-    let mut vec = vec![Default::default(); len_buffer];
-    max_buffer
-        .cmd()
-        .queue(pro_que.queue())
-        .read(&mut vec)
-        .enq()
-        .expect("Error reading result data.");
-
-    println!("max_buffer = {:?}", &vec[..10]);
-
-
     for i in 0..n {
-        println!();
-        println!("Instance train {}", i);
-        println!("-----------------------------------");
-
         kernel_substract.set_arg("row", i as u32).unwrap();
         kernel_substract
             .enq()
