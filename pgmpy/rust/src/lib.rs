@@ -97,6 +97,9 @@ use std::slice;
 
 mod denominator;
 pub use denominator::logdenominator_dataset_gaussian;
+pub use denominator::logdenominator_dataset_onlykde;
+pub use denominator::logdenominator_dataset;
+
 //pub use denominator_onlygaussian::{
 //    ckde_free, ckde_init, gaussian_regression_free, gaussian_regression_init, GaussianRegression,
 //};

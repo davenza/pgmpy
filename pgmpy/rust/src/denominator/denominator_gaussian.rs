@@ -2,7 +2,7 @@ use crate::{empty_buffers, copy_buffers, Error, DoubleNumpyArray, buffer_fill_va
             get_max_work_size, is_rowmajor, max_gpu_vec_copy, log_sum_gpu_vec, max_gpu_mat,
             sum_gpu_mat};
 
-use crate::denominator::{CKDE};
+use crate::denominator::{CKDE, s2, s1_s3_coefficients};
 
 use std::slice;
 use std::f64;
@@ -31,34 +31,6 @@ pub unsafe extern "C" fn logdenominator_dataset_gaussian(
 
     Box::into_raw(ckde);
     Box::into_raw(pro_que);
-}
-
-unsafe fn s2(ckde: &Box<CKDE>) -> f64 {
-    let mut s2 = 0.0f64;
-    for i in 0..ckde.nregressions {
-        let gr = &**(ckde.regressions.offset(i as isize));
-        let coeff = gr.variable_beta;
-
-        s2 += (coeff * coeff) / gr.variance;
-    }
-
-    s2
-}
-
-fn s1_and_s3_constant_name(rowmajor: bool) -> &'static str {
-    if rowmajor {
-        "s1_and_s3_sum_constant_rowmajor"
-    } else {
-        "s1_and_s3_sum_constant_columnmajor"
-    }
-}
-
-fn s1_and_s3_parents_name(rowmajor: bool) -> &'static str {
-    if rowmajor {
-        "s1_and_s3_sum_parents_rowmajor"
-    } else {
-        "s1_and_s3_sum_parents_columnmajor"
-    }
 }
 
 fn onlygaussian_exponent_coefficients_iterate_test_name(rowmajor: bool) -> &'static str {
@@ -99,85 +71,6 @@ fn onlygaussian_exponent_coefficients_iterate_train_low_memory_compute_name(
     }
 }
 
-unsafe fn s1_s3_coefficients(
-    ckde: &Box<CKDE>,
-    pro_que: &mut Box<ProQue>,
-    test_instances_buffer: &Buffer<f64>,
-    test_leading_dimension: u32,
-    test_rowmajor: bool,
-    s1: &Buffer<f64>,
-    s3: &Buffer<f64>,
-    m: usize,
-) {
-    buffer_fill_value(pro_que, &s1, m, 0.0f64);
-    buffer_fill_value(pro_que, &s3, m, 0.0f64);
-
-    let kernel_s1_and_s3_sum_constant = pro_que
-        .kernel_builder(s1_and_s3_constant_name(test_rowmajor))
-        .global_work_size(m)
-        .arg(test_instances_buffer)
-        .arg(test_leading_dimension)
-        .arg_named("beta", None::<&Buffer<f64>>)
-        .arg_named("variable_index", &0u32)
-        .arg_named("inv_variance", &0.0f64)
-        .arg(s1)
-        .arg(s3)
-        .build()
-        .expect("Kernel s1_and_s3_sum_constant build failed.");
-
-    let kernel_s1_and_s3_sum_parents = pro_que
-        .kernel_builder(s1_and_s3_parents_name(test_rowmajor))
-        .global_work_size(m)
-        .arg(test_instances_buffer)
-        .arg(test_leading_dimension)
-        .arg_named("beta", None::<&Buffer<f64>>)
-        .arg_named("variable_index", &0u32)
-        .arg_named("evidence_index", None::<&Buffer<u32>>)
-        .arg_named("len_evidence", &0u32)
-        .arg_named("inv_variance", &0.0f64)
-        .arg(s1)
-        .arg(s3)
-        .build()
-        .expect("Kernel s1_and_s3_sum_parents build failed.");
-
-    for i in 0..ckde.nregressions {
-        let gr = &**ckde.regressions.offset(i as isize);
-
-        if gr.nparents > 1 {
-            kernel_s1_and_s3_sum_parents
-                .set_arg("beta", &gr.beta)
-                .unwrap();
-            kernel_s1_and_s3_sum_parents
-                .set_arg("variable_index", gr.variable_index)
-                .unwrap();
-            kernel_s1_and_s3_sum_parents
-                .set_arg("evidence_index", gr.evidence_index.as_ref().unwrap())
-                .unwrap();
-            kernel_s1_and_s3_sum_parents
-                .set_arg("len_evidence", gr.nparents - 1)
-                .unwrap();
-            kernel_s1_and_s3_sum_parents
-                .set_arg("inv_variance", gr.variance.recip())
-                .unwrap();
-            kernel_s1_and_s3_sum_parents
-                .enq()
-                .expect("Error while executing kernel_s1_and_s3_sum_parents kernel.");
-        } else {
-            kernel_s1_and_s3_sum_constant
-                .set_arg("beta", &gr.beta)
-                .unwrap();
-            kernel_s1_and_s3_sum_constant
-                .set_arg("variable_index", gr.variable_index)
-                .unwrap();
-            kernel_s1_and_s3_sum_constant
-                .set_arg("inv_variance", gr.variance.recip())
-                .unwrap();
-            kernel_s1_and_s3_sum_constant
-                .enq()
-                .expect("Error while executing kernel_s1_and_s3_sum_constant kernel.");
-        }
-    }
-}
 
 unsafe fn logdenominator_iterate_test_gaussian(
     ckde: &Box<CKDE>,
@@ -186,8 +79,6 @@ unsafe fn logdenominator_iterate_test_gaussian(
     result: *mut c_double,
     error: *mut Error,
 ) {
-    println!("Iterate test");
-
     let kde = Box::from_raw(ckde.kde);
     let test_shape = slice::from_raw_parts((*x).shape, 2);
 
@@ -342,8 +233,6 @@ unsafe fn logdenominator_iterate_train_gaussian_low_memory(
     tmp_coefficients: &Buffer<f64>,
     error: *mut Error,
 ) {
-    println!("Iterate train Low memory");
-
     let kde = Box::from_raw(ckde.kde);
     let test_shape = slice::from_raw_parts((*x).shape, 2);
 
@@ -479,8 +368,6 @@ unsafe fn logdenominator_iterate_train_gaussian_high_memory(
     tmp_coefficients: &Buffer<f64>,
     error: *mut Error,
 ) {
-    println!("Iterate train High memory");
-
     let kde = Box::from_raw(ckde.kde);
     let test_shape = slice::from_raw_parts((*x).shape, 2);
 

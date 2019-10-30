@@ -58,6 +58,8 @@ class CKDE_CPD(BaseFactor):
                 self.kde_evidence.append(e)
                 self.kde_indices.append(idx+1)
 
+        self.kde_indices = np.asarray(self.kde_indices, dtype=np.uint32)
+
         self.variables = [variable] + evidence
 
         self.gaussian_cpds = gaussian_cpds
@@ -136,6 +138,8 @@ class CKDE_CPD(BaseFactor):
 
         precision = ffi.cast("double*", self.inv_cov.ctypes.data)
 
+        kde_indices = ffi.cast("unsigned int*", self.kde_indices.ctypes.data)
+
         error = ffi.new("Error*", 0)
 
         lognorm_factor = self._logdenominator_factor()
@@ -143,6 +147,7 @@ class CKDE_CPD(BaseFactor):
         ckde = lib.ckde_init(self.pro_que,
                              self.kdedensity,
                              precision,
+                             kde_indices,
                              self._ffi_gaussian_regressors,
                              len(self.gaussian_cpds),
                              lognorm_factor, error)
@@ -257,24 +262,8 @@ class CKDE_CPD(BaseFactor):
 
         prob += self.kde_logpdf(dataset.loc[:,[self.variable] + self.kde_evidence]).sum()
 
-        start = time()
-        py_denominator = self._logdenominator_dataset_python(dataset[:10])
-        end = time()
-        py_time = end-start
-        print("Python implementation: " + str(py_time))
-
-        reorder_dataset = dataset.loc[:, [self.variable] + self.evidence]
-        start = time()
-        rust_denominator = self._logdenominator_dataset(reorder_dataset)[:10].sum()
-        end = time()
-        rust_time = end-start
-        print("Rust implementation: " + str(rust_time))
-        print("Ratio: " + str(py_time / rust_time))
-
-        print("Python: " + str(py_denominator))
-        print("Rust: " + str(rust_denominator))
-
-        prob -= py_denominator
+        denominator = self._logdenominator_dataset(dataset.loc[:, [self.variable] + self.evidence])
+        prob -= denominator
 
         return prob
 
@@ -284,14 +273,14 @@ class CKDE_CPD(BaseFactor):
                 return 0
             else:
                 # TODO Sum in the GPU?
-                return self._logdenominator_dataset_onlygaussian(dataset)
+                return self._logdenominator_dataset_onlygaussian(dataset).sum()
         else:
             if self.n_gaussian == 0:
                 # TODO Sum in the GPU?
-                return self._logdenominator_dataset_onlykde(dataset)
+                return self._logdenominator_dataset_onlykde(dataset).sum()
             else:
                 # TODO Sum in the GPU?
-                return self._logdenominator_dataset_mix(dataset)
+                return self._logdenominator_dataset_mix(dataset).sum()
 
     def _logdenominator_dataset_onlygaussian(self, dataset):
         points = np.atleast_2d(dataset.to_numpy())
@@ -321,7 +310,18 @@ class CKDE_CPD(BaseFactor):
         return result
 
     def _logdenominator_dataset_mix(self, dataset):
-        pass
+        points = np.atleast_2d(dataset.to_numpy())
+        m, _ = points.shape
+
+        result = np.empty((m,), dtype=np.float64)
+        cffi_points = _CFFIDoubleArray(points, ffi)
+        cffi_result = ffi.cast("double *", result.ctypes.data)
+        error = ffi.new("Error*", 0)
+        lib.logdenominator_dataset(self.ckde, self.pro_que, cffi_points.c_ptr(), cffi_result, error)
+        if error[0] == Error.MemoryError:
+            raise MemoryError("Memory error allocating space in the OpenCL device.")
+        return result
+
 
     def _logdenominator_dataset_python(self, dataset):
         dataset = dataset.loc[:, [self.variable] + self.evidence]
@@ -348,12 +348,12 @@ class CKDE_CPD(BaseFactor):
         prob = 0
 
         for i in range(dataset.shape[0]):
-            Ti = (dataset.iloc[i, [0] + self.kde_indices].values - self.kde_instances)
+            Ti = (dataset.iloc[i].loc[self.kde_evidence].to_numpy() - self.kde_instances[:,1:])
 
-            bi = (self.kde_instances[:,0]*precision[0,0] - np.dot(Ti[:,1:], precision[0, 1:]))
+            bi = (self.kde_instances[:,0]*precision[0,0] - np.dot(Ti, precision[0, 1:]))
 
-            ci = (np.sum(np.dot(Ti[:,1:], precision[1:, 1:])*Ti[:,1:], axis=1) -
-                 2*self.kde_instances[:,0]*np.dot(Ti[:,1:], precision[0, 1:]) +
+            ci = (np.sum(np.dot(Ti, precision[1:, 1:])*Ti, axis=1) -
+                 2*self.kde_instances[:,0]*np.dot(Ti, precision[0, 1:]) +
                  (self.kde_instances[:,0]*self.kde_instances[:,0])*precision[0,0])
 
             for j, gaussian_cpd in enumerate(self.gaussian_cpds):
@@ -362,8 +362,8 @@ class CKDE_CPD(BaseFactor):
                 Bjk = gaussian_cpd.beta[k_index+1]
                 Gj = dataset.iloc[i, self.evidence.index(gaussian_cpd.variable)+1]
 
-                subset_data = dataset.loc[i, gaussian_cpd.evidence].values
-                Cj = gaussian_cpd.beta[0] + np.dot(gaussian_cpd.beta[1:], subset_data) - Bjk*dataset.loc[i,self.variable]
+                subset_data = dataset.iloc[i].loc[gaussian_cpd.evidence].to_numpy()
+                Cj = gaussian_cpd.beta[0] + np.dot(gaussian_cpd.beta[1:], subset_data) - Bjk*dataset.iloc[i].loc[self.variable]
 
                 diff = Cj - Gj
 

@@ -528,7 +528,6 @@ __kernel void log_and_sum_mat(__global double* res,
  * #test_indexer = RM, CM#
  */
 
-
 __kernel void substract_without_origin_@train_mode@_@test_mode@(__constant double *train_data,
                                                                 __private uint train_leading_dimension,
                                                                 __constant double *test_data,
@@ -550,8 +549,6 @@ __kernel void substract_without_origin_@train_mode@_@test_mode@(__constant doubl
 
 /**end repeat**/
 
-
-
 __kernel void precompute_marginal_precision(__constant double* precision,
                                                         __private double inv_precision_variable,
                                                         __private uint d,
@@ -565,9 +562,6 @@ __kernel void precompute_marginal_precision(__constant double* precision,
     res[RM(r,c,d-1)] = precision[r+1]*precision[c+1]*inv_precision_variable - precision[RM(r+1,c+1,d)];
 }
 
-
-
-
 __kernel void onlykde_exponent_coefficients_iterate_test(__global double* Ti,
         __private uint nparents_kde,
         __global double* marginal_precision,
@@ -578,7 +572,7 @@ __kernel void onlykde_exponent_coefficients_iterate_test(__global double* Ti,
     uint gid = get_global_id(0);
     uint lid = get_local_id(0);
 
-    uint instance = gid / (nparents_kde*nparents_kde);
+    uint instance = get_group_id(0);
 
     uint p = lid / nparents_kde;
     uint q = lid % nparents_kde;
@@ -611,13 +605,10 @@ __kernel void onlykde_exponent_coefficients_iterate_test(__global double* Ti,
         }
     }
 
-
     barrier(CLK_LOCAL_MEM_FENCE);
     if (q == 0) {
         sums_buffer[p] = sums_buffer[lid] * Tp;
     }
-
-
 
     remaining_sum = nparents_kde;
 
@@ -644,7 +635,6 @@ __kernel void onlykde_exponent_coefficients_iterate_test(__global double* Ti,
     }
 }
 
-
 __kernel void onlykde_exponent_coefficients_iterate_train_high_memory(__global double* Ti,
         __private uint nparents_kde,
         __global double* marginal_precision,
@@ -657,7 +647,7 @@ __kernel void onlykde_exponent_coefficients_iterate_train_high_memory(__global d
     uint gid = get_global_id(0);
     uint lid = get_local_id(0);
 
-    uint instance = gid / (nparents_kde*nparents_kde);
+    uint instance = get_group_id(0);
 
     uint p = lid / nparents_kde;
     uint q = lid % nparents_kde;
@@ -718,7 +708,6 @@ __kernel void onlykde_exponent_coefficients_iterate_train_high_memory(__global d
     }
 }
 
-
 __kernel void onlykde_exponent_coefficients_iterate_train_low_memory_checkmax(__global double* Ti,
         __private uint nparents_kde,
         __global double* marginal_precision,
@@ -731,7 +720,7 @@ __kernel void onlykde_exponent_coefficients_iterate_train_low_memory_checkmax(__
     uint gid = get_global_id(0);
     uint lid = get_local_id(0);
 
-    uint instance = gid / (nparents_kde*nparents_kde);
+    uint instance = get_group_id(0);
 
     uint p = lid / nparents_kde;
     uint q = lid % nparents_kde;
@@ -805,7 +794,7 @@ __kernel void onlykde_exponent_coefficients_iterate_train_low_memory_compute(__g
     uint gid = get_global_id(0);
     uint lid = get_local_id(0);
 
-    uint instance = gid / (nparents_kde*nparents_kde);
+    uint instance = get_group_id(0);
 
     uint p = lid / nparents_kde;
     uint q = lid % nparents_kde;
@@ -819,21 +808,19 @@ __kernel void onlykde_exponent_coefficients_iterate_train_low_memory_compute(__g
 
     uint remaining_sum = nparents_kde;
 
-    if (q < remaining_sum / 2) {
-        while (remaining_sum > 1) {
-            uint stride = remaining_sum / 2;
-            barrier(CLK_LOCAL_MEM_FENCE);
+    while (remaining_sum > 1) {
+        uint stride = remaining_sum / 2;
+        barrier(CLK_LOCAL_MEM_FENCE);
 
-            if (q < stride) {
-                sums_buffer[lid] += sums_buffer[lid+stride];
-            }
-
-            if (remaining_sum % 2 != 0 && q == 0) {
-                sums_buffer[lid] += sums_buffer[lid+remaining_sum-1];
-            }
-
-            remaining_sum = stride;
+        if (q < stride) {
+            sums_buffer[lid] += sums_buffer[lid+stride];
         }
+
+        if (remaining_sum % 2 != 0 && q == 0) {
+            sums_buffer[lid] += sums_buffer[lid+remaining_sum-1];
+        }
+
+        remaining_sum = stride;
     }
 
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -843,21 +830,19 @@ __kernel void onlykde_exponent_coefficients_iterate_train_low_memory_compute(__g
 
     remaining_sum = nparents_kde;
 
-    if (lid < remaining_sum / 2) {
-        while (remaining_sum > 1) {
-            uint stride = remaining_sum / 2;
-            barrier(CLK_LOCAL_MEM_FENCE);
+    while (remaining_sum > 1) {
+        uint stride = remaining_sum / 2;
+        barrier(CLK_LOCAL_MEM_FENCE);
 
-            if (lid < stride) {
-                sums_buffer[lid] += sums_buffer[lid+stride];
-            }
-
-            if (remaining_sum % 2 != 0 && lid == 0) {
-                sums_buffer[lid] += sums_buffer[lid+remaining_sum-1];
-            }
-
-            remaining_sum = stride;
+        if (lid<stride) {
+            sums_buffer[lid] += sums_buffer[lid+stride];
         }
+
+        if (remaining_sum % 2 != 0 && lid == 0) {
+            sums_buffer[lid] += sums_buffer[lid+remaining_sum-1];
+        }
+
+        remaining_sum = stride;
     }
 
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -892,17 +877,14 @@ __kernel void s1_and_s3_sum_parents_@mode@(__constant double* test_dataset,
     double Cj = beta[0];
 
     uint base_pos = BASE_@indexer@(row, 0, leading_dimension);
-
     for(int i = 0; i < len_evidence; i++) {
-        Cj += beta[evidence_index[i]+1]*test_dataset[base_pos + ADD_BASE_@indexer@(row, evidence_index[i], leading_dimension)];
+        Cj += beta[i+2]*test_dataset[base_pos + ADD_BASE_@indexer@(row, evidence_index[i], leading_dimension)];
     }
 
     double diff = (Cj - test_dataset[base_pos + ADD_BASE_@indexer@(row, variable_index, leading_dimension)]);
-
     s1[row] += beta[1]*diff*inv_variance;
     s3[row] += diff*diff*inv_variance;
 }
-
 
 __kernel void s1_and_s3_sum_constant_@mode@(__constant double* test_dataset,
                                         __private uint leading_dimension,
@@ -1015,5 +997,330 @@ __kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_comput
 /**end repeat**/
 
 
+/**
+##########################################
+############ Denominator Mix #############
+##########################################
+*/
+
+/**begin repeat
+ * #train_mode = rowmajor, columnmajor#
+ * #train_indexer = RM, CM#
+ */
+
+/**begin repeat1
+ * #test_mode = rowmajor, columnmajor#
+ * #test_indexer = RM, CM#
+ */
+
+__kernel void substract_without_origin_from_indices_iterate_test_@train_mode@_@test_mode@(__constant double *train_data,
+                                                            __private uint train_leading_dimension,
+                                                            __constant double *test_data,
+                                                            __private uint test_leading_dimension,
+                                                            __global double *res,
+                                                            __private uint test_row,
+                                                            __private uint nparents_kde,
+                                                            __constant uint* kde_indices) {
+
+    int gid = get_global_id(0);
+
+    int r = gid / nparents_kde;
+    int c = gid % nparents_kde;
+
+    res[RM(r, c, nparents_kde)] = test_data[@test_indexer@(test_row, kde_indices[c], test_leading_dimension)]
+                            - train_data[@train_indexer@(r, c+1, train_leading_dimension)];
+}
+
+/**end repeat1**/
+
+/**end repeat**/
+
+/**begin repeat
+ * #train_mode = rowmajor, columnmajor#
+ * #train_indexer = RM, CM#
+ */
+
+/**begin repeat1
+ * #test_mode = rowmajor, columnmajor#
+ * #test_indexer = RM, CM#
+ */
+
+__kernel void substract_without_origin_from_indices_iterate_train_@train_mode@_@test_mode@(__constant double *train_data,
+        __private uint train_leading_dimension,
+        __constant double *test_data,
+        __private uint test_leading_dimension,
+        __global double *res,
+        __private uint train_row,
+        __private uint nparents_kde,
+        __constant uint* kde_indices) {
+
+    int gid = get_global_id(0);
+
+    int r = gid / nparents_kde;
+    int c = gid % nparents_kde;
+
+    res[RM(r, c, nparents_kde)] = test_data[@test_indexer@(r, kde_indices[c], test_leading_dimension)]
+                                - train_data[@train_indexer@(train_row, c+1, train_leading_dimension)];
+}
+
+/**end repeat1**/
+
+/**end repeat**/
+
+
+__kernel void mahalanobis(__constant double *Ti,
+                        __constant double* precision,
+                        __global double* res,
+                        __local double* sums_buffer,
+                        __private uint nparents_kde
+)
+{
+    uint gid = get_global_id(0);
+    uint lid = get_local_id(0);
+
+    uint instance = get_group_id(0);
+
+    uint p = lid / nparents_kde;
+    uint q = lid % nparents_kde;
+
+    sums_buffer[lid] = Ti[RM(instance, p, nparents_kde)]*Ti[RM(instance, q, nparents_kde)]*
+                        precision[RM(p+1,q+1,nparents_kde+1)];
+
+    uint remaining_sum = nparents_kde*nparents_kde;
+
+    while (remaining_sum > 1) {
+        uint stride = remaining_sum / 2;
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+            if (lid < stride) {
+                sums_buffer[lid] += sums_buffer[lid+stride];
+            }
+
+            if (remaining_sum % 2 != 0 && lid == 0) {
+                sums_buffer[lid] += sums_buffer[lid+remaining_sum-1];
+            }
+
+            remaining_sum = stride;
+    }
+
+    if (lid == 0) {
+        res[instance] = sums_buffer[0];
+    }
+}
+
+__kernel void mahalanobis_mat(__constant double *Ti,
+        __constant double* precision,
+        __global double* res,
+        __local double* sums_buffer,
+        __private uint nparents_kde,
+        __private uint train_index,
+        __private uint n
+)
+{
+    uint gid = get_global_id(0);
+    uint lid = get_local_id(0);
+
+    uint instance = get_group_id(0);
+
+    uint p = lid / nparents_kde;
+    uint q = lid % nparents_kde;
+
+    sums_buffer[lid] = Ti[RM(instance, p, nparents_kde)]*Ti[RM(instance, q, nparents_kde)]*
+    precision[RM(p+1,q+1,nparents_kde+1)];
+
+    uint remaining_sum = nparents_kde*nparents_kde;
+
+    while (remaining_sum > 1) {
+        uint stride = remaining_sum / 2;
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        if (lid < stride) {
+            sums_buffer[lid] += sums_buffer[lid+stride];
+        }
+
+        if (remaining_sum % 2 != 0 && lid == 0) {
+            sums_buffer[lid] += sums_buffer[lid+remaining_sum-1];
+        }
+
+        remaining_sum = stride;
+    }
+
+    if (lid == 0) {
+        res[RM(instance, train_index, n)] = sums_buffer[0];
+    }
+}
+
+
+__kernel void dotproduct(__constant double *Ti,
+            __constant double* precision,
+            __global double* res,
+            __local double* sums_buffer,
+            __private uint nparents_kde
+)
+{
+    uint gid = get_global_id(0);
+    uint lid = get_local_id(0);
+
+    uint instance = get_group_id(0);
+
+
+    sums_buffer[lid] = Ti[RM(instance, lid, nparents_kde)]*precision[lid+1];
+
+
+    uint remaining_sum = nparents_kde;
+
+    while (remaining_sum > 1) {
+        uint stride = remaining_sum / 2;
+        barrier(CLK_LOCAL_MEM_FENCE);
+
+        if (lid < stride) {
+            sums_buffer[lid] += sums_buffer[lid+stride];
+        }
+
+        if (remaining_sum % 2 != 0 && lid == 0) {
+            sums_buffer[lid] += sums_buffer[lid+remaining_sum-1];
+        }
+
+        remaining_sum = stride;
+    }
+
+    if (lid == 0) {
+        res[instance] = sums_buffer[0];
+    }
+}
+
+/**begin repeat
+ * #train_mode = rowmajor, columnmajor#
+ * #train_indexer = RM, CM#
+ */
+
+__kernel void exponent_coefficients_iterate_test_@train_mode@(__constant double *train_data,
+                                                __private uint train_leading_dimension,
+                                                __constant double* precision,
+                                                __global double* mahalanobis,
+                                                __constant double* dotproduct,
+                                                __constant double* s1,
+                                                __private double inv_a,
+                                                __constant double* s3,
+                                                __private uint test_index
+
+)
+{
+    uint gid = get_global_id(0);
+
+    double train_variable = train_data[BASE_@train_indexer@(gid, 0, train_leading_dimension)];
+    double dot_instance = dotproduct[gid];
+
+    double bi = train_variable*precision[0] - dot_instance - s1[test_index];
+
+    double ci = 0.5*(mahalanobis[gid] - 2*train_variable*dot_instance
+            + train_variable*train_variable*precision[0] + s3[test_index]);
+
+    mahalanobis[gid] = bi*bi*inv_a - ci;
+}
+
+/**end repeat**/
+
+/**begin repeat
+ * #train_mode = rowmajor, columnmajor#
+ * #train_indexer = RM, CM#
+ */
+
+__kernel void exponent_coefficients_iterate_train_high_memory_@train_mode@(__constant double *train_data,
+                                        __private uint train_leading_dimension,
+                                        __constant double* precision,
+                                        __global double* coeffs,
+                                        __constant double* dotproduct,
+                                        __constant double* s1,
+                                        __private double inv_a,
+                                        __constant double* s3,
+                                        __private uint train_index,
+                                        __private uint n
+)
+{
+    uint gid = get_global_id(0);
+
+    double train_variable = train_data[BASE_@train_indexer@(train_index, 0, train_leading_dimension)];
+//    Negate the dotproduct because we computed Train - Test in substract instead of Test - Train.
+    double dot_instance = dotproduct[gid];
+
+    double bi = train_variable*precision[0] - dot_instance - s1[gid];
+
+
+    double ci = 0.5*(coeffs[RM(gid, train_index, n)] - 2*train_variable*dot_instance
+                 + train_variable*train_variable*precision[0] + s3[gid]);
+
+//    printf("gid %d, train_index %d, bi %f, ci %f, dotproduct %f",
+//            gid, train_index, bi, ci, dot_instance);
+
+    coeffs[RM(gid, train_index, n)] = bi*bi*inv_a - ci;
+}
+
+/**end repeat**/
+
+/**begin repeat
+ * #train_mode = rowmajor, columnmajor#
+ * #train_indexer = RM, CM#
+ */
+
+__kernel void exponent_coefficients_iterate_train_low_memory_checkmax_@train_mode@(__constant double *train_data,
+                                        __private uint train_leading_dimension,
+                                        __constant double* precision,
+                                        __constant double* mahalanobis,
+                                        __global double* max_coeffs,
+                                        __constant double* dotproduct,
+                                        __constant double* s1,
+                                        __private double inv_a,
+                                        __constant double* s3,
+                                        __private uint train_index
+)
+{
+    uint gid = get_global_id(0);
+
+    double train_variable = train_data[BASE_@train_indexer@(train_index, 0, train_leading_dimension)];
+    double dot_instance = dotproduct[gid];
+
+    double bi = train_variable*precision[0] - dot_instance - s1[gid];
+
+    double ci = 0.5*(mahalanobis[gid] - 2*train_variable*dot_instance
+                     + train_variable*train_variable*precision[0] + s3[gid]);
+
+    max_coeffs[gid] = max(max_coeffs[gid], bi*bi*inv_a - ci);
+}
+
+/**end repeat**/
+
+/**begin repeat
+ * #train_mode = rowmajor, columnmajor#
+ * #train_indexer = RM, CM#
+ */
+
+__kernel void exponent_coefficients_iterate_train_low_memory_compute_@train_mode@(__constant double *train_data,
+                                        __private uint train_leading_dimension,
+                                        __constant double* precision,
+                                        __constant double* mahalanobis,
+                                        __global double* coeffs,
+                                        __constant double* max_coeffs,
+                                        __constant double* dotproduct,
+                                        __constant double* s1,
+                                        __private double inv_a,
+                                        __constant double* s3,
+                                        __private uint train_index
+)
+{
+    uint gid = get_global_id(0);
+
+    double train_variable = train_data[BASE_@train_indexer@(train_index, 0, train_leading_dimension)];
+    double dot_instance = dotproduct[gid];
+
+    double bi = train_variable*precision[0] - dot_instance - s1[gid];
+
+    double ci = 0.5*(mahalanobis[gid] - 2*train_variable*dot_instance
+                     + train_variable*train_variable*precision[0] + s3[gid]);
+
+    coeffs[gid] += exp(bi*bi*inv_a - ci - max_coeffs[gid]);
+}
+
+/**end repeat**/
 
 // Don't let /**end repeat**/ to be the last line: conv_template.py won't work.
