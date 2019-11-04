@@ -212,25 +212,25 @@ if __name__ == '__main__':
     print("=======================")
     print("=======================")
 
-    pl = PredictiveLikelihood(ecoli_data)
+    pl = PredictiveLikelihood(mixture_data, k=2)
 
-    hc = HybridCachedHillClimbing(ecoli_data, scoring_method=pl)
+    hc = HybridCachedHillClimbing(mixture_data, scoring_method=pl)
     bn = hc.estimate()
 
     # ghc = CachedHillClimbing(ecoli_data, scoring_method=pl)
     # gbn = ghc.estimate()
     #
-    # to_bnlearn_str(bn)
-    #
-    # scores = []
-    # max_int_value = np.iinfo(np.int32).max
-    # for i in range(50):
-    #     seed = np.random.randint(0, max_int_value)
-    #     pl.change_seed(seed)
-    #
-    #     scores.append(total_score_pl(bn, pl))
-    #
-    # print("Other cross validation scores: " + str(scores))
+    to_bnlearn_str(bn)
+
+    scores = []
+    max_int_value = np.iinfo(np.int32).max
+    for i in range(50):
+        seed = np.random.randint(0, max_int_value)
+        pl.change_seed(seed)
+
+        scores.append(total_score_pl(bn, pl))
+
+    print("Other cross validation scores: " + str(scores))
     # pass
 
     # print("Score summary: ")
