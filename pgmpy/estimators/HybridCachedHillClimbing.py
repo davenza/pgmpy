@@ -533,8 +533,13 @@ class HybridCachedHillClimbing(StructureEstimator):
             if model.has_edge(source_node, dest_node):
                 return ("-", source_node, dest_node, delta_score)
             elif model.has_edge(dest_node, source_node):
-                must_check_for_cycle = False if not model.get_parents(source_node) - dest_node or \
-                                                not model.get_children(dest_node) - source_node else True
+                source_new_parents = model.get_parents(source_node)
+                source_new_parents.remove(dest_node)
+                dest_new_children = model.get_children(dest_node)
+                dest_new_children.remove(source_node)
+
+                must_check_for_cycle = False if not source_new_parents or \
+                                                not dest_new_children else True
 
                 if must_check_for_cycle:
                     try:
@@ -602,8 +607,12 @@ class HybridCachedHillClimbing(StructureEstimator):
                 if len(model.get_parents(dest_node)) >= max_indegree:
                     continue
 
-                must_check_for_cycle = False if not model.get_parents(source_node) - dest_node or \
-                                                not model.get_children(dest_node) - source_node else True
+                source_new_parents = model.get_parents(source_node)
+                source_new_parents.remove(dest_node)
+                dest_new_children = model.get_children(dest_node)
+                dest_new_children.remove(source_node)
+                must_check_for_cycle = False if not source_new_parents or \
+                                                not dest_new_children else True
 
                 if must_check_for_cycle:
                     try:
