@@ -87,8 +87,6 @@ unsafe fn logdenominator_iterate_test_onlykde(
     let (ti_buffer, final_result_buffer, coeffs, max_coefficients) =
         empty_buffers!(pro_que, error, f64, n * nparents_kde, m, n, num_groups);
 
-    let a = 0.5 * ckde.precision_variable;
-
     let (test_rowmajor, test_leading_dimension) = is_rowmajor(x);
 
     let kernel_substract = pro_que
@@ -203,10 +201,9 @@ unsafe fn logdenominator_iterate_train_onlykde(
             ckde, pro_que, x, result, &b, error,
         ),
         Err(_) => {
-            let (tmp_vec_buffer,) = empty_buffers!(pro_que, error, f64, m);
             // TODO: If n < 2m, is it better to iterate over the training data?
             logdenominator_iterate_train_low_memory_onlykde(
-                ckde, pro_que, x, result, &tmp_vec_buffer, error
+                ckde, pro_que, x, result, error
             );
         }
     }
@@ -217,7 +214,6 @@ unsafe fn logdenominator_iterate_train_low_memory_onlykde(
     pro_que: &mut Box<ProQue>,
     x: *const DoubleNumpyArray,
     result: *mut c_double,
-    coeffs: &Buffer<f64>,
     error: *mut Error,
 ) {
     let kde = Box::from_raw(ckde.kde);
@@ -226,10 +222,6 @@ unsafe fn logdenominator_iterate_train_low_memory_onlykde(
     let d = kde.d;
     let nparents_kde = d - 1;
     let n = kde.n;
-
-    let max_work_size = get_max_work_size(&pro_que);
-    let local_work_size = if n < max_work_size { n } else { max_work_size };
-    let num_groups = (n as f32 / local_work_size as f32).ceil() as usize;
 
     let test_slice = slice::from_raw_parts((*x).ptr, m * d);
 
@@ -247,8 +239,6 @@ unsafe fn logdenominator_iterate_train_low_memory_onlykde(
 
     buffer_fill_value(&pro_que, &max_buffer, m, f64::MIN);
     buffer_fill_value(&pro_que, &final_result_buffer, m, 0.0f64);
-
-    let a = 0.5 * ckde.precision_variable;
 
     let (test_rowmajor, test_leading_dimension) = is_rowmajor(x);
 
@@ -382,8 +372,6 @@ unsafe fn logdenominator_iterate_train_high_memory_onlykde(
         m,
         m*num_groups
     );
-
-    let a = 0.5 * ckde.precision_variable;
 
     let (test_rowmajor, test_leading_dimension) = is_rowmajor(x);
 

@@ -3,8 +3,8 @@ import numpy as np
 np.random.seed(0)
 import pandas as pd
 
-from pgmpy.estimators import MaximumLikelihoodEstimator, HybridCachedHillClimbing, PredictiveLikelihood
-from pgmpy.factors.continuous import NodeType
+from pgmpy.estimators import MaximumLikelihoodEstimator, CachedHillClimbing, HybridCachedHillClimbing, PredictiveLikelihood
+from pgmpy.factors.continuous import NodeType, CKDE_CPD
 
 from time import time
 
@@ -39,10 +39,13 @@ def mixture_data_f(n_instances):
     c[a_negative] = -1.2 + 2.3*a[a_negative] + 1.5*b[a_negative] + np.random.normal(0, np.sqrt(0.5), a_negative.sum())
     c[~a_negative] = 2.3 + -0.7*a[~a_negative] + 3.0*b[~a_negative] + np.random.normal(0, np.sqrt(1), n_instances - a_negative.sum())
 
-    data = pd.DataFrame({'a': a, 'b': b, 'c': c})
+    d = c*0.67 + a*0.1 + 7.2 + np.random.normal(0, 0.5, n_instances)
+    e = c + b + np.random.normal(0, 3, n_instances)
+
+    data = pd.DataFrame({'a': a, 'b': b, 'c': c, 'd': d, 'e': e})
     return data
 
-mixture_data = mixture_data_f(500)
+mixture_data = mixture_data_f(10000)
 
 def to_bnlearn_str(graph):
     for node in graph.nodes:
@@ -70,190 +73,131 @@ def total_score(graph, scoring_method):
 
     return total_score
 
-
-
 def test_ckde_results(variable, evidence, node_type):
-
-
     print("Configuration variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type))
     print("------------------------------------------------------")
 
-    # print("Train > test")
-    # print("..............")
-    #
-    # train_dataset = mixture_data_f(100000)
-    # train_dataset.index = range(2, 100002)
-    # test_dataset = mixture_data_f(1000)
-    # test_dataset.index = range(2, 1002)
-    #
-    # ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, evidence, node_type,
-    #                                                              train_dataset[[variable] + evidence])
-    #
-    # start = time()
-    # py_result = ckde._logdenominator_dataset_python(test_dataset)
-    # end = time()
-    # py_time = end-start
-    # print("Python implementation: " + str(py_time))
-    #
-    # reorder_dataset = test_dataset[[variable] + evidence]
-    # start = time()
-    # rust_result = ckde._logdenominator_dataset(reorder_dataset)
-    # end = time()
-    # rust_time = end-start
-    # print("Rust implementation: " + str(rust_time))
-    # print("Ratio: " + str(py_time / rust_time))
-    #
-    # print("Python result: " + str(py_result))
-    #
-    # if isinstance(rust_result, np.ndarray):
-    #     rust_result = rust_result.sum()
-    #
-    # print("Rust result: " + str(rust_result))
-    #
-    # assert np.isclose(py_result, rust_result), \
-    #     "Wrong result for variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type) + \
-    #     " in Train > Test"
-    #
-    # print()
-    #
-    # print("Test > Train High Memory")
-    # print("..............")
-    #
-    # train_dataset = mixture_data_f(100)
-    # train_dataset.index = range(2, 102)
-    # test_dataset = mixture_data_f(500)
-    # test_dataset.index = range(2, 502)
-    #
-    # ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, evidence, node_type,
-    #                                                              train_dataset[[variable] + evidence])
-    #
-    # start = time()
-    # py_result = ckde._logdenominator_dataset_python(test_dataset)
-    # end = time()
-    # py_time = end-start
-    # print("Python implementation: " + str(py_time))
-    #
-    # reorder_dataset = test_dataset[[variable] + evidence]
-    # start = time()
-    # rust_result = ckde._logdenominator_dataset(reorder_dataset)
-    # end = time()
-    # rust_time = end-start
-    # print("Rust implementation: " + str(rust_time))
-    # print("Ratio: " + str(py_time / rust_time))
-    #
-    # print("Python result: " + str(py_result))
-    #
-    # if isinstance(rust_result, np.ndarray):
-    #     rust_result = rust_result.sum()
-    #
-    # print("Rust result: " + str(rust_result))
-    #
-    # assert np.isclose(py_result, rust_result), \
-    #     "Wrong result for variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type) + \
-    #     " in Test > Train High Memory"
-    #
-    # print()
-    #
-    # print("Test > Train Low Memory")
-    # print("..............")
-    #
-    # train_dataset = mixture_data_f(100)
-    # train_dataset.index = range(2,102)
-    # test_dataset = mixture_data_f(10000000)
-    # test_dataset.index = range(2,10000002)
-    #
-    # ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, evidence, node_type,
-    #                                                              train_dataset[[variable] + evidence])
-    #
-    # start = time()
-    # py_result = ckde._logdenominator_dataset_python(test_dataset[:10])
-    # end = time()
-    # py_time = end-start
-    # print("Python implementation (extrapolation): " + str(py_time*1000000))
-    #
-    # reorder_dataset = test_dataset[[variable] + evidence]
-    # start = time()
-    # rust_result = ckde._logdenominator_dataset(reorder_dataset)
-    # end = time()
-    # rust_time = end-start
-    # print("Rust implementation: " + str(rust_time))
-    # print("Ratio: " + str((py_time*1000000) / rust_time))
-    #
-    # print("Python result: " + str(py_result))
-    #
-    # if isinstance(rust_result, np.ndarray):
-    #     rust_result = rust_result[:10].sum()
-    #
-    # print("Rust result: " + str(rust_result))
-    #
-    # assert np.isclose(py_result, rust_result), \
-    #     "Wrong result for variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type) + \
-    #     " in Test > Train Low Memory"
-    #
-    # print()
+    iterate_test_results(evidence, node_type, variable)
+    print()
+    iterate_train_high_memory(evidence, node_type, variable)
+    print()
+    iterate_train_low_memory(evidence, node_type, variable)
+    print()
 
-    print("Equal 1000")
+
+def iterate_train_low_memory(evidence, node_type, variable):
+    if not evidence:
+        ckde_fun = CKDE_CPD._logdenominator_dataset
+    elif all([node_type[e] == NodeType.GAUSSIAN for e in evidence]):
+        ckde_fun = CKDE_CPD._logdenominator_dataset_onlygaussian
+    elif all([node_type[e] == NodeType.CKDE for e in evidence]):
+        ckde_fun = CKDE_CPD._logdenominator_dataset_onlykde
+    else:
+        ckde_fun = CKDE_CPD._logdenominator_dataset_mix
+
+    print("Test > Train Low Memory")
     print("..............")
-
-    train_dataset = mixture_data_f(1000)
-    train_dataset.index = range(2,1002)
-    test_dataset = mixture_data_f(1000)
-    test_dataset.index = range(2,1002)
-
+    train_dataset = mixture_data_f(100)
+    train_dataset.index = range(2, 102)
+    test_dataset = mixture_data_f(10000000)
+    test_dataset.index = range(2, 10000002)
     ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, evidence, node_type,
                                                                  train_dataset[[variable] + evidence])
+    start = time()
+    py_result = ckde._logdenominator_dataset_python(test_dataset[:10])
+    end = time()
+    py_time = end - start
+    print("Python implementation (extrapolation): " + str(py_time * 1000000))
+    reorder_dataset = test_dataset[[variable] + evidence]
+    start = time()
+    rust_result = ckde_fun(ckde, reorder_dataset)
+    end = time()
+    rust_time = end - start
+    print("Rust implementation: " + str(rust_time))
+    print("Ratio: " + str((py_time * 1000000) / rust_time))
+    print("Python result: " + str(py_result))
+    if isinstance(rust_result, np.ndarray):
+        rust_result = rust_result[:10].sum()
+    print("Rust result: " + str(rust_result))
+    assert np.isclose(py_result, rust_result), \
+        "Wrong result for variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type) + \
+        " in Test > Train Low Memory"
 
 
-
+def iterate_train_high_memory(evidence, node_type, variable):
+    print("Test > Train High Memory")
+    print("..............")
+    train_dataset = mixture_data_f(100)
+    train_dataset.index = range(2, 102)
+    test_dataset = mixture_data_f(500)
+    test_dataset.index = range(2, 502)
+    ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, evidence, node_type,
+                                                                 train_dataset[[variable] + evidence])
+    start = time()
+    py_result = ckde._logdenominator_dataset_python(test_dataset)
+    end = time()
+    py_time = end - start
+    print("Python implementation: " + str(py_time))
     reorder_dataset = test_dataset[[variable] + evidence]
     start = time()
     rust_result = ckde._logdenominator_dataset(reorder_dataset)
     end = time()
-    rust_time = end-start
+    rust_time = end - start
     print("Rust implementation: " + str(rust_time))
-    print()
+    print("Ratio: " + str(py_time / rust_time))
+    print("Python result: " + str(py_result))
+    if isinstance(rust_result, np.ndarray):
+        rust_result = rust_result.sum()
+    print("Rust result: " + str(rust_result))
+    assert np.isclose(py_result, rust_result), \
+        "Wrong result for variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type) + \
+        " in Test > Train High Memory"
 
-    print("Equal 10000")
+
+def iterate_test_results(evidence, node_type, variable):
+    print("Train > test")
     print("..............")
-
-    train_dataset = mixture_data_f(10000)
-    train_dataset.index = range(2,10002)
-    test_dataset = mixture_data_f(10000)
-    test_dataset.index = range(2,10002)
-
-    ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, evidence, node_type,
-                                                                 train_dataset[[variable] + evidence])
-
-
-
-    reorder_dataset = test_dataset[[variable] + evidence]
-    start = time()
-    rust_result = ckde._logdenominator_dataset(reorder_dataset)
-    end = time()
-    rust_time = end-start
-    print("Rust implementation: " + str(rust_time))
-    print()
-
-    print("Equal 100000")
-    print("..............")
-
     train_dataset = mixture_data_f(100000)
-    train_dataset.index = range(2,100002)
-    test_dataset = mixture_data_f(100000)
-    test_dataset.index = range(2,100002)
-
+    train_dataset.index = range(2, 100002)
+    test_dataset = mixture_data_f(1000)
+    test_dataset.index = range(2, 1002)
     ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, evidence, node_type,
                                                                  train_dataset[[variable] + evidence])
-
-
-
+    start = time()
+    py_result = ckde._logdenominator_dataset_python(test_dataset)
+    end = time()
+    py_time = end - start
+    print("Python implementation: " + str(py_time))
     reorder_dataset = test_dataset[[variable] + evidence]
     start = time()
     rust_result = ckde._logdenominator_dataset(reorder_dataset)
     end = time()
-    rust_time = end-start
+    rust_time = end - start
     print("Rust implementation: " + str(rust_time))
-    print()
+    print("Ratio: " + str(py_time / rust_time))
+    print("Python result: " + str(py_result))
+    if isinstance(rust_result, np.ndarray):
+        rust_result = rust_result.sum()
+    print("Rust result: " + str(rust_result))
+    assert np.isclose(py_result, rust_result), \
+        "Wrong result for variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type) + \
+        " in Train > Test"
+
+
+def total_score_pl(graph, pl):
+    """
+    Computes the total score in the network. As the score method is decomposable. The total score is the sum of
+    the local scores.
+    :param graph: Graph to be evaluated.
+    :return: Total score of the network.
+    """
+    total_score = 0
+    for node in graph.nodes:
+        parents = graph.get_parents(node)
+        ls = pl.local_score(node, parents, NodeType.GAUSSIAN, {p: NodeType.GAUSSIAN for p in parents})
+        total_score += ls
+
+    return total_score
 
 if __name__ == '__main__':
 
@@ -265,9 +209,39 @@ if __name__ == '__main__':
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.GAUSSIAN})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.CKDE})
 
+    print("=======================")
+    print("=======================")
 
-    # print("=======================")
-    # print("=======================")
-    #
-    hc = HybridCachedHillClimbing(mixture_data)
+    pl = PredictiveLikelihood(ecoli_data)
+
+    hc = HybridCachedHillClimbing(ecoli_data, scoring_method=pl)
     bn = hc.estimate()
+
+    # ghc = CachedHillClimbing(ecoli_data, scoring_method=pl)
+    # gbn = ghc.estimate()
+    #
+    # to_bnlearn_str(bn)
+    #
+    # scores = []
+    # max_int_value = np.iinfo(np.int32).max
+    # for i in range(50):
+    #     seed = np.random.randint(0, max_int_value)
+    #     pl.change_seed(seed)
+    #
+    #     scores.append(total_score_pl(bn, pl))
+    #
+    # print("Other cross validation scores: " + str(scores))
+    # pass
+
+    # print("Score summary: ")
+    # print("-------------------")
+    # total_score_pl(gbn, pl)
+    #
+    #
+    # max_int_value = np.iinfo(np.int32).max
+    # seed = np.random.randint(0, max_int_value)
+    # pl.change_seed(seed)
+    #
+    # print("Score summary (other seed): ")
+    # print("-------------------")
+    # total_score_pl(gbn, pl)

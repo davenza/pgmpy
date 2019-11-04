@@ -70,9 +70,16 @@ class HybridContinuousModel(BayesianModel):
 
     def add_node(self, node, weight=None, **kwargs):
         if "node_type" in kwargs:
-            if not isinstance(kwargs["node_type"], NodeType):
-                raise TypeError("Node type should be of type NodeType")
-            self.node_type[node] = kwargs["node_type"]
+            if not isinstance(kwargs["node_type"], dict):
+                raise TypeError("Node type should be a dictionary of pairs (node, NodeType).")
+
+            if node in kwargs["node_type"].keys():
+                if not isinstance(kwargs["node_type"][node], NodeType):
+                    raise TypeError("Node type should be of type NodeType")
+
+                self.node_type[node] = kwargs["node_type"][node]
+            else:
+                self.node_type[node] = NodeType.GAUSSIAN
         else:
             self.node_type[node] = NodeType.GAUSSIAN
 
@@ -83,15 +90,7 @@ class HybridContinuousModel(BayesianModel):
             if not isinstance(kwargs["node_type"], dict):
                 raise TypeError("Node type should be a dictionary of pairs (node, NodeType).")
 
-            for v in kwargs["node_type"].values():
-                if not isinstance(v, NodeType):
-                    raise TypeError("Node type should be of type NodeType")
-
-            self.node_type.update(kwargs["node_type"])
-        else:
-            self.node_type.update({n: NodeType.GAUSSIAN for n in nodes})
-
-        super(HybridContinuousModel, self).add_nodes_from(nodes, weights=weights)
+        super(HybridContinuousModel, self).add_nodes_from(nodes, weights=weights, **kwargs)
 
     def add_cpds(self, *cpds):
         """
@@ -259,6 +258,14 @@ class HybridContinuousModel(BayesianModel):
         )
         cpds_list = _estimator.get_parameters(**kwargs)
         self.add_cpds(*cpds_list)
+
+    def copy(self):
+        model_copy = HybridContinuousModel()
+        model_copy.add_nodes_from(self.nodes(), node_type=self.node_type)
+        model_copy.add_edges_from(self.edges())
+        if self.cpds:
+            model_copy.add_cpds(*[cpd.copy() for cpd in self.cpds])
+        return model_copy
 
     def predict(self, data):
         """

@@ -1,9 +1,8 @@
-use crate::{empty_buffers, copy_buffers, Error, GaussianKDE, gaussian_kde_free, buffer_fill_value};
+use crate::{empty_buffers, copy_buffers, Error, GaussianKDE, buffer_fill_value};
 
 
 use std::slice;
 use std::ptr;
-use std::mem;
 
 use ocl::{Buffer, ProQue};
 use libc::{c_uint, c_double};
@@ -36,7 +35,7 @@ pub unsafe extern "C" fn gaussian_regression_init(
     variance: c_double,
     error: *mut Error,
 ) -> *mut GaussianRegression {
-    let mut pro_que = Box::from_raw(pro_que);
+    let pro_que = Box::from_raw(pro_que);
 
     let beta_slice = slice::from_raw_parts(beta, (nparents + 1) as usize);
     let (beta_buffer,) = copy_buffers!(pro_que, error, beta_slice => ptr::null_mut());
@@ -70,9 +69,8 @@ pub unsafe extern "C" fn gaussian_regression_free(gr: *mut GaussianRegression) {
     if gr.is_null() {
         return;
     }
-    unsafe {
-        Box::from_raw(gr);
-    }
+
+    Box::from_raw(gr);
 }
 
 pub struct CKDE {
@@ -99,7 +97,7 @@ pub unsafe extern "C" fn ckde_init(
 ) -> *mut CKDE {
 
     let d = (*kde).d;
-    let mut pro_que = Box::from_raw(pro_que);
+    let pro_que = Box::from_raw(pro_que);
 
     let precision_slice = slice::from_raw_parts(precision, d * d);
 

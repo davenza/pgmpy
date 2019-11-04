@@ -162,10 +162,10 @@ class DAG(nx.DiGraph):
                     "The number of elements in nodes and weights" "should be equal."
                 )
             for index in range(len(nodes)):
-                self.add_node(node=nodes[index], weight=weights[index])
+                self.add_node(node=nodes[index], weight=weights[index], **kwargs)
         else:
             for node in nodes:
-                self.add_node(node=node)
+                self.add_node(node=node, **kwargs)
 
     def add_edge(self, u, v, weight=None, **kwargs):
         """

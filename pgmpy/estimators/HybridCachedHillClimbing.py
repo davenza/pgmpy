@@ -106,17 +106,17 @@ class HybridCachedHillClimbing(StructureEstimator):
                 print("Caching removing arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
 
 
-                str_p = ""
-                str_p_new = ""
-                for p in parents:
-                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in parents_new:
-                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                print("\t P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
-                      str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
-                      str(local_score(node, parents, node_type, model.node_type))
-                      )
+                # str_p = ""
+                # str_p_new = ""
+                # for p in parents:
+                #     str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in parents_new:
+                #     str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # print("\t P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                #            "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                #       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
+                #       str(local_score(node, parents, node_type, model.node_type))
+                #       )
             # Delta score of reversing arc 'node' -> 'other_node'
             elif model.has_edge(node, other_node):
                 other_node_parents = set(model.get_parents(other_node))
@@ -135,28 +135,28 @@ class HybridCachedHillClimbing(StructureEstimator):
                                                 local_score(node, parents, node_type, model.node_type)
                 print("Caching reversing arc " + node + " -> " + other_node + " (" + str(scores[node_index, other_index]) + ")")
 
-                str_p = ""
-                str_other_p = ""
-                str_p_new = ""
-                str_other_p_new = ""
-                for p in parents:
-                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in parents_new:
-                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in other_node_parents:
-                    str_other_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in other_node_parents_new:
-                    str_other_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-
-                print("\t P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p_new + ") + " +
-                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                        "P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p + ") - " +
-                        "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
-                      str(local_score(other_node, other_node_parents_new, node_type, model.node_type)) + " + " +
-                      str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
-                      str(local_score(other_node, other_node_parents, node_type, model.node_type)) + " - " +
-                      str(local_score(node, parents, node_type, model.node_type))
-                      )
+                # str_p = ""
+                # str_other_p = ""
+                # str_p_new = ""
+                # str_other_p_new = ""
+                # for p in parents:
+                #     str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in parents_new:
+                #     str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in other_node_parents:
+                #     str_other_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in other_node_parents_new:
+                #     str_other_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                #
+                # print("\t P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p_new + ") + " +
+                #            "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                #         "P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p + ") - " +
+                #         "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                #       str(local_score(other_node, other_node_parents_new, node_type, model.node_type)) + " + " +
+                #       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
+                #       str(local_score(other_node, other_node_parents, node_type, model.node_type)) + " - " +
+                #       str(local_score(node, parents, node_type, model.node_type))
+                #       )
 
             else:
                 # Delta score of adding arc 'other_node' -> 'node'
@@ -166,17 +166,17 @@ class HybridCachedHillClimbing(StructureEstimator):
                                                   local_score(node, parents, node_type, model.node_type)
                 print("Caching adding arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
 
-                str_p = ""
-                str_p_new = ""
-                for p in parents:
-                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in parents_new:
-                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                print("\t P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
-                      str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
-                      str(local_score(node, parents, node_type, model.node_type))
-                      )
+                # str_p = ""
+                # str_p_new = ""
+                # for p in parents:
+                #     str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in parents_new:
+                #     str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # print("\t P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                #            "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                #       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
+                #       str(local_score(node, parents, node_type, model.node_type))
+                #       )
 
     def _precompute_score_types_node(self, model, scores, node):
 
@@ -189,29 +189,29 @@ class HybridCachedHillClimbing(StructureEstimator):
                                  local_score(node, parents, NodeType.GAUSSIAN, parents_type)
             print("Caching changing type of node " + node + " to CKDE (" + str(scores[node_index]) + ")")
 
-            str_p = ""
-            for p in parents:
-                str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-
-            print("\t P([" + node + "," + NodeType.str(NodeType.CKDE) + "] | " + str_p + ") - " +
-                  "P([" + node + "," + NodeType.str(NodeType.GAUSSIAN) + "] | " + str_p + ") = " +
-                  str(local_score(node, parents, NodeType.CKDE, parents_type)) + " - " +
-                  str(local_score(node, parents, NodeType.GAUSSIAN, parents_type))
-                  )
+            # str_p = ""
+            # for p in parents:
+            #     str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+            #
+            # print("\t P([" + node + "," + NodeType.str(NodeType.CKDE) + "] | " + str_p + ") - " +
+            #       "P([" + node + "," + NodeType.str(NodeType.GAUSSIAN) + "] | " + str_p + ") = " +
+            #       str(local_score(node, parents, NodeType.CKDE, parents_type)) + " - " +
+            #       str(local_score(node, parents, NodeType.GAUSSIAN, parents_type))
+            #       )
         elif model.node_type[node] == NodeType.CKDE:
             scores[node_index] = local_score(node, parents, NodeType.GAUSSIAN, parents_type) - \
                                  local_score(node, parents, NodeType.CKDE, parents_type)
             print("Caching changing type of node " + node + " to Gaussian (" + str(scores[node_index]) + ")")
 
-            str_p = ""
-            for p in parents:
-                str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-
-            print("\t P([" + node + "," + NodeType.str(NodeType.GAUSSIAN) + "] | " + str_p + ") - " +
-                  "P([" + node + "," + NodeType.str(NodeType.CKDE) + "] | " + str_p + ") = " +
-                  str(local_score(node, parents, NodeType.GAUSSIAN, parents_type)) + " - " +
-                  str(local_score(node, parents, NodeType.CKDE, parents_type))
-                  )
+            # str_p = ""
+            # for p in parents:
+            #     str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+            #
+            # print("\t P([" + node + "," + NodeType.str(NodeType.GAUSSIAN) + "] | " + str_p + ") - " +
+            #       "P([" + node + "," + NodeType.str(NodeType.CKDE) + "] | " + str_p + ") = " +
+            #       str(local_score(node, parents, NodeType.GAUSSIAN, parents_type)) + " - " +
+            #       str(local_score(node, parents, NodeType.CKDE, parents_type))
+            #       )
         else:
             raise ValueError("Wrong node type for HybridContinuousModel.")
 
@@ -253,17 +253,17 @@ class HybridCachedHillClimbing(StructureEstimator):
                                                 local_score(node, parents, node_type, model.node_type)
                 print("Updating removing arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
 
-                str_p = ""
-                str_p_new = ""
-                for p in parents:
-                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in parents_new:
-                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                print("\t P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
-                      str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
-                      str(local_score(node, parents, node_type, model.node_type))
-                      )
+                # str_p = ""
+                # str_p_new = ""
+                # for p in parents:
+                #     str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in parents_new:
+                #     str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # print("\t P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                #            "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                #       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
+                #       str(local_score(node, parents, node_type, model.node_type))
+                #       )
 
                 # Delta score of reversing arc 'other_node' -> 'node'
                 other_node_parents = set(model.get_parents(other_node))
@@ -279,29 +279,28 @@ class HybridCachedHillClimbing(StructureEstimator):
 
                 print("Updating reversing arc " + other_node + " -> " + node + " (" + str(scores[node_index, other_index]) + ")")
 
-                str_p = ""
-                str_other_p = ""
-                str_p_new = ""
-                str_other_p_new = ""
-                for p in parents:
-                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in parents_new:
-                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in other_node_parents:
-                    str_other_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in other_node_parents_new:
-                    str_other_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-
-                print("\t P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p_new + ") + " +
-                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                        "P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p + ") - " +
-                        "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
-                      str(local_score(other_node, other_node_parents_new, other_node_type, model.node_type)) + " + " +
-                      str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
-                      str(local_score(other_node, other_node_parents, other_node_type, model.node_type)) + " - " +
-                      str(local_score(node, parents, node_type, model.node_type))
-                      )
-
+                # str_p = ""
+                # str_other_p = ""
+                # str_p_new = ""
+                # str_other_p_new = ""
+                # for p in parents:
+                #     str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in parents_new:
+                #     str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in other_node_parents:
+                #     str_other_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in other_node_parents_new:
+                #     str_other_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                #
+                # print("\t P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p_new + ") + " +
+                #            "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                #         "P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p + ") - " +
+                #         "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                #       str(local_score(other_node, other_node_parents_new, other_node_type, model.node_type)) + " + " +
+                #       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
+                #       str(local_score(other_node, other_node_parents, other_node_type, model.node_type)) + " - " +
+                #       str(local_score(node, parents, node_type, model.node_type))
+                #       )
 
             # Delta score of reversing arc 'node' -> 'other_node'
             elif model.has_edge(node, other_node):
@@ -322,29 +321,28 @@ class HybridCachedHillClimbing(StructureEstimator):
 
                 print("Updating reversing arc " + node + " -> " + other_node + " (" + str(scores[other_index, node_index]) + ")")
 
-                str_p = ""
-                str_other_p = ""
-                str_p_new = ""
-                str_other_p_new = ""
-                for p in parents:
-                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in parents_new:
-                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in other_node_parents:
-                    str_other_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in other_node_parents_new:
-                    str_other_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-
-                print("\t P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p_new + ") + " +
-                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                        "P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p + ") - " +
-                        "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
-                      str(local_score(other_node, other_node_parents_new, other_node_type, model.node_type)) + " + " +
-                      str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
-                      str(local_score(other_node, other_node_parents, other_node_type, model.node_type)) + " - " +
-                      str(local_score(node, parents, node_type, model.node_type))
-                      )
-
+                # str_p = ""
+                # str_other_p = ""
+                # str_p_new = ""
+                # str_other_p_new = ""
+                # for p in parents:
+                #     str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in parents_new:
+                #     str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in other_node_parents:
+                #     str_other_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in other_node_parents_new:
+                #     str_other_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                #
+                # print("\t P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p_new + ") + " +
+                #            "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                #         "P([" + other_node + "," + NodeType.str(model.node_type[other_node]) + "] | " + str_other_p + ") - " +
+                #         "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                #       str(local_score(other_node, other_node_parents_new, other_node_type, model.node_type)) + " + " +
+                #       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
+                #       str(local_score(other_node, other_node_parents, other_node_type, model.node_type)) + " - " +
+                #       str(local_score(node, parents, node_type, model.node_type))
+                #       )
 
             # Delta score of adding arc 'other_node' -> 'node'
             else:
@@ -353,17 +351,17 @@ class HybridCachedHillClimbing(StructureEstimator):
                 scores[other_index, node_index] = local_score(node, parents_new, node_type, model.node_type) - local_score(node, parents, node_type, model.node_type)
                 print("Updating adding arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
 
-                str_p = ""
-                str_p_new = ""
-                for p in parents:
-                    str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                for p in parents_new:
-                    str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-                print("\t P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
-                           "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
-                      str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
-                      str(local_score(node, parents, node_type, model.node_type))
-                      )
+                # str_p = ""
+                # str_p_new = ""
+                # for p in parents:
+                #     str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # for p in parents_new:
+                #     str_p_new += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+                # print("\t P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p_new + ") - " +
+                #            "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
+                #       str(local_score(node, parents_new, node_type, model.node_type)) + " - " +
+                #       str(local_score(node, parents, node_type, model.node_type))
+                #       )
 
     def update_node_score_types(self, model, type_scores, node):
         """
@@ -410,43 +408,41 @@ class HybridCachedHillClimbing(StructureEstimator):
                                             local_score(child, child_parents, model.node_type[child], model.node_type)
 
 
+        # str_appendix_children = ""
+        # str_appendix_numbers = ""
+        # for child in children:
+        #
+        #     if model.node_type[child] == NodeType.CKDE:
+        #         str_parents_child_new = ""
+        #         str_parents_child_old = ""
+        #         child_parents = model.get_parents(child)
+        #         for p in child_parents:
+        #             if p == node:
+        #                 str_parents_child_new += "[" + p + "," + NodeType.str(other_node_type) + "], "
+        #             str_parents_child_old += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
+        #
+        #
+        #         str_appendix_children += "P([" + child + "," + NodeType.str(model.node_type[child]) + "] | " + str_parents_child_new + ") - " + \
+        #                                  "P([" + child + "," + NodeType.str(model.node_type[child]) + "] | " + str_parents_child_old + ")"
+        #
+        #         new_parent_type = model.node_type.copy()
+        #         new_parent_type[node] = other_node_type
+        #
+        #         str_appendix_numbers += str(local_score(child, child_parents, model.node_type[child], new_parent_type)) + " - " + \
+        #                                 str(local_score(child, child_parents, model.node_type[child], model.node_type))
+        #
+        #
+        # print(" (" + str(type_scores[node_index]) + ")")
 
-
-        str_appendix_children = ""
-        str_appendix_numbers = ""
-        for child in children:
-
-            if model.node_type[child] == NodeType.CKDE:
-                str_parents_child_new = ""
-                str_parents_child_old = ""
-                child_parents = model.get_parents(child)
-                for p in child_parents:
-                    if p == node:
-                        str_parents_child_new += "[" + p + "," + NodeType.str(other_node_type) + "], "
-                    str_parents_child_old += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-
-
-                str_appendix_children += "P([" + child + "," + NodeType.str(model.node_type[child]) + "] | " + str_parents_child_new + ") - " + \
-                                         "P([" + child + "," + NodeType.str(model.node_type[child]) + "] | " + str_parents_child_old + ")"
-
-                new_parent_type = model.node_type.copy()
-                new_parent_type[node] = other_node_type
-
-                str_appendix_numbers += str(local_score(child, child_parents, model.node_type[child], new_parent_type)) + " - " + \
-                                        str(local_score(child, child_parents, model.node_type[child], model.node_type))
-
-
-        print(" (" + str(type_scores[node_index]) + ")")
-
-        str_p = ""
-        for p in parents:
-            str_p += "[" + p +  "," + NodeType.str(model.node_type[p]) + "], "
-        print("\t P([" + node + "," + NodeType.str(other_node_type) + "] | " + str_p + ") - " +
-              "P([" + node + "," + NodeType.str(node_type) + "] | " + str_p + ") " + str_appendix_children +
-              " = " +
-              str(local_score(node, parents, other_node_type, model.node_type)) + " - " +
-              str(local_score(node, parents, node_type, model.node_type)) + " + " + str_appendix_numbers
-              )
+        # str_p = ""
+        # for p in parents:
+        #     str_p += "[" + p +  "," + NodeType.str(model.node_type[p]) + "], "
+        # print("\t P([" + node + "," + NodeType.str(other_node_type) + "] | " + str_p + ") - " +
+        #       "P([" + node + "," + NodeType.str(node_type) + "] | " + str_p + ") " + str_appendix_children +
+        #       " = " +
+        #       str(local_score(node, parents, other_node_type, model.node_type)) + " - " +
+        #       str(local_score(node, parents, node_type, model.node_type)) + " + " + str_appendix_numbers
+        #       )
 
     def apply_operator(self, op, model, scores, type_scores):
         """
@@ -537,34 +533,39 @@ class HybridCachedHillClimbing(StructureEstimator):
             if model.has_edge(source_node, dest_node):
                 return ("-", source_node, dest_node, delta_score)
             elif model.has_edge(dest_node, source_node):
-                model.remove_edge(dest_node, source_node)
-                model.add_edge(source_node, dest_node)
-                must_check_for_cycle = False if not any(model.get_parents(source_node)) or \
-                                                not any(model.get_children(dest_node)) else True
+                must_check_for_cycle = False if not model.get_parents(source_node) - dest_node or \
+                                                not model.get_children(dest_node) - source_node else True
 
                 if must_check_for_cycle:
-                    isdag = nx.is_directed_acyclic_graph(model)
-
-                    model.remove_edge(source_node, dest_node)
-                    model.add_edge(dest_node, source_node)
+                    try:
+                        model.remove_edge(dest_node, source_node)
+                        model.add_edge(source_node, dest_node)
+                        isdag = True
+                        model.remove_edge(source_node, dest_node)
+                        model.add_edge(dest_node, source_node)
+                    except ValueError:
+                        isdag = False
+                        model.add_edge(dest_node, source_node)
 
                     if isdag:
                         return ("flip", dest_node, source_node, delta_score)
                     else:
                         continue
                 else:
-                    model.remove_edge(source_node, dest_node)
-                    model.add_edge(dest_node, source_node)
                     return ("flip", dest_node, source_node, delta_score)
+
             else:
-                must_check_for_cycle = False if not any(model.get_parents(source_node)) or \
-                                                not any(model.get_children(dest_node)) else True
+                must_check_for_cycle = False if not model.get_parents(source_node) or \
+                                                not model.get_children(dest_node) else True
 
                 if must_check_for_cycle:
-                    model.add_edge(source_node, dest_node)
-                    isdag = nx.is_directed_acyclic_graph(model)
+                    try:
+                        model.add_edge(source_node, dest_node)
+                        isdag = True
+                        model.remove_edge(source_node, dest_node)
+                    except ValueError:
+                        isdag = False
 
-                    model.remove_edge(source_node, dest_node)
                     if isdag:
                         return ("+", source_node, dest_node, delta_score)
                     else:
@@ -573,7 +574,7 @@ class HybridCachedHillClimbing(StructureEstimator):
                     return ("+", source_node, dest_node, delta_score)
         return None
 
-    def best_operator_arcs_max_indegree(self, graph, scores, max_indegree):
+    def best_operator_arcs_max_indegree(self, model, scores, max_indegree):
         """
         Finds the best operator to apply to the graph. This is a version of self.best_operation() with checks for
         maximum indegree for maximum performance when indegree is not relevant.
@@ -583,7 +584,7 @@ class HybridCachedHillClimbing(StructureEstimator):
         score[j,i] is the score of reversing the arc.
         :return: The best operator (op, source_node, dest_node, delta_score).
         """
-        nnodes = graph.number_of_nodes()
+        nnodes = model.number_of_nodes()
 
         # Sort in descending order. That is, [::-1].
         sort_scores = np.unravel_index(np.argsort(scores.ravel())[::-1], (nnodes, nnodes))
@@ -595,41 +596,47 @@ class HybridCachedHillClimbing(StructureEstimator):
             source_node = self.nodes[source_index]
             dest_node = self.nodes[dest_index]
 
-            if graph.has_edge(source_node, dest_node):
+            if model.has_edge(source_node, dest_node):
                 return ("-", source_node, dest_node, delta_score)
-            elif graph.has_edge(dest_node, source_node):
-                if len(graph.get_parents(dest_node)) >= max_indegree:
+            elif model.has_edge(dest_node, source_node):
+                if len(model.get_parents(dest_node)) >= max_indegree:
                     continue
 
-                graph.remove_edge(dest_node, source_node)
-                graph.add_edge(source_node, dest_node)
-                must_check_for_cycle = False if not any(graph.get_parents(source_node)) or \
-                                               not any(graph.get_children(dest_node)) else True
+                must_check_for_cycle = False if not model.get_parents(source_node) - dest_node or \
+                                                not model.get_children(dest_node) - source_node else True
+
                 if must_check_for_cycle:
-                    isdag = nx.is_directed_acyclic_graph(graph)
-                    graph.remove_edge(source_node, dest_node)
-                    graph.add_edge(dest_node, source_node)
+                    try:
+                        model.remove_edge(dest_node, source_node)
+                        model.add_edge(source_node, dest_node)
+                        isdag = True
+                        model.remove_edge(source_node, dest_node)
+                        model.add_edge(dest_node, source_node)
+                    except ValueError:
+                        isdag = False
+                        model.add_edge(dest_node, source_node)
 
                     if isdag:
                         return ("flip", dest_node, source_node, delta_score)
                     else:
                         continue
                 else:
-                    graph.remove_edge(source_node, dest_node)
-                    graph.add_edge(dest_node, source_node)
                     return ("flip", dest_node, source_node, delta_score)
             else:
-                if len(graph.get_parents(dest_node)) >= max_indegree:
+                if len(model.get_parents(dest_node)) >= max_indegree:
                     continue
 
-                must_check_for_cycle = False if not any(graph.get_parents(source_node)) or \
-                                               not any(graph.get_children(dest_node)) else True
+                must_check_for_cycle = False if not any(model.get_parents(source_node)) or \
+                                                not any(model.get_children(dest_node)) else True
 
                 if must_check_for_cycle:
-                    graph.add_edge(source_node, dest_node)
-                    isdag = nx.is_directed_acyclic_graph(graph)
+                    try:
+                        model.add_edge(source_node, dest_node)
+                        isdag = True
+                        model.remove_edge(source_node, dest_node)
+                    except ValueError:
+                        isdag = False
 
-                    graph.remove_edge(source_node, dest_node)
                     if isdag:
                         return ("+", source_node, dest_node, delta_score)
                     else:
@@ -704,16 +711,15 @@ class HybridCachedHillClimbing(StructureEstimator):
         # last_delta = np.finfo(np.float64).max
         print("Starting score: " + str(self._total_score(current_model)))
 
-        max_int_value = np.iinfo(np.int).max
         while iter_no <= max_iter:
             iter_no += 1
 
-            if iter_no % seed_iters == 0:
-                # Change seed
-                seed = np.random.rand(0, max_int_value)
-                self.scoring_method.change_seed(seed)
-                self._precompute_cache_arcs(start, scores)
-                self._precompute_cache_types(start, type_scores)
+            # if iter_no % seed_iters == 0:
+            #     # Change seed
+            #     seed = np.random.randint(0, max_int_value)
+            #     self.scoring_method.change_seed(seed)
+            #     self._precompute_cache_arcs(current_model, scores)
+            #     self._precompute_cache_types(current_model, type_scores)
 
             op = best_operator_fun(current_model, scores, type_scores)
 
@@ -727,8 +733,10 @@ class HybridCachedHillClimbing(StructureEstimator):
             print("Best op: " + str(op))
             print("")
             self.apply_operator(op, current_model, scores, type_scores)
+            self._draw(current_model, op, iter_no)
             print("Current score: " + str(self._total_score(current_model)))
 
+        self._draw(current_model, None, iter_no)
         final_score = self._total_score(current_model)
         print("Final score: " + str(final_score))
         return current_model
@@ -755,3 +763,58 @@ class HybridCachedHillClimbing(StructureEstimator):
             )
 
         return total_score
+
+    def _draw(self, graph, best_op, iter):
+        graph_copy = graph.copy()
+
+        total_score = 0
+        for node in graph.nodes:
+            parents = graph.get_parents(node)
+            total_score += self.scoring_method.local_score(node, parents, graph.node_type[node], graph.node_type)
+
+        for n in graph_copy.nodes:
+            if graph_copy.node_type[n] == NodeType.CKDE:
+                graph_copy.node[n]['style'] = 'filled'
+                graph_copy.node[n]['fillcolor'] = 'gray'
+
+
+        if best_op is None:
+            # nx.nx_agraph.write_dot(graph_copy, 'iterations/{:03d}.dot'.format(iter))
+            A = nx.nx_agraph.to_agraph(graph_copy)
+            A.graph_attr.update(label="Score {:0.3f}".format(total_score), labelloc="t", fontsize='25')
+            A.write('iterations/{:03d}.dot'.format(iter))
+            A.clear()
+        else:
+            operation, source, dest, score = best_op
+
+            if operation == '+':
+                graph_copy.edges[source, dest]['color'] = 'green3'
+                graph_copy.edges[source, dest]['label'] = "{:0.3f}".format(score)
+            elif operation == '-':
+                graph_copy.add_edge(source, dest)
+                graph_copy.edges[source, dest]['color'] = 'firebrick1'
+                graph_copy.edges[source, dest]['label'] = "{:0.3f}".format(score)
+            elif operation == 'flip':
+                graph_copy.edges[dest, source]['color'] = 'dodgerblue'
+                graph_copy.edges[dest, source]['label'] = "{:0.3f}".format(score)
+            elif operation == 'type' and dest == NodeType.CKDE:
+                graph_copy.node[source]['style'] = 'filled'
+                graph_copy.node[source]['fillcolor'] = 'darkolivegreen1'
+                graph_copy.node[source]['label'] = "{}\n{:0.3f}".format(source, score)
+            elif operation == 'type' and dest == NodeType.GAUSSIAN:
+                graph_copy.node[source]['style'] = 'filled'
+                graph_copy.node[source]['fillcolor'] = 'yellow'
+                graph_copy.node[source]['label'] = "{}\n{:0.3f}".format(source, score)
+
+            # nx.nx_agraph.write_dot(graph_copy, 'iterations/{:03d}.dot'.format(iter))
+            A = nx.nx_agraph.to_agraph(graph_copy)
+            A.graph_attr.update(label="Score {:0.3f}".format(total_score), labelloc="t", fontsize='25')
+            A.write('iterations/{:03d}.dot'.format(iter))
+            A.clear()
+
+        import subprocess
+        subprocess.run(["dot", "-Tpdf", "iterations/{:03d}.dot".format(iter), "-o",
+                        "iterations/{:03d}.pdf".format(iter)])
+
+        import os
+        os.remove('iterations/{:03d}.dot'.format(iter))

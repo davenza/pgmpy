@@ -20,7 +20,7 @@ class PredictiveLikelihood(StructureScore):
 
     def change_seed(self, seed):
         self.seed = seed
-        self.fold_indices = KFold(self.k, shuffle=True, random_state=seed).split(self.data)
+        self.fold_indices = list(KFold(self.k, shuffle=True, random_state=seed).split(self.data))
 
     def local_score(self, variable, parents, variable_type, parent_types):
         score = 0

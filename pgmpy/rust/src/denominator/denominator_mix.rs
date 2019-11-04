@@ -315,10 +315,6 @@ unsafe fn logdenominator_iterate_train_low_memory(
     let nparents_kde = kde.d - 1;
     let n = kde.n;
 
-    let max_work_size = get_max_work_size(&pro_que);
-    let local_work_size = if n < max_work_size { n } else { max_work_size };
-    let num_groups = (n as f32 / local_work_size as f32).ceil() as usize;
-
     let test_slice = slice::from_raw_parts((*x).ptr, m * d_test);
 
     let (test_instances_buffer,) = copy_buffers!(pro_que, error, test_slice);

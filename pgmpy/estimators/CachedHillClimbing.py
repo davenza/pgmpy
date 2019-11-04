@@ -3,9 +3,10 @@
 import numpy as np
 import networkx as nx
 
-from pgmpy.estimators import StructureEstimator, K2Score, GaussianBicScore, BdeuScore, BicScore, BGeScore
+from pgmpy.estimators import StructureEstimator, K2Score, GaussianBicScore, BdeuScore, BicScore, BGeScore, PredictiveLikelihood
 from pgmpy.base import DAG
 
+from pgmpy.factors.continuous import NodeType
 
 class CachedHillClimbing(StructureEstimator):
 
@@ -37,11 +38,10 @@ class CachedHillClimbing(StructureEstimator):
         else:
             self.scoring_method = scoring_method
 
-        if continuous and not isinstance(self.scoring_method, (GaussianBicScore, BGeScore)):
+        if continuous and not isinstance(self.scoring_method, (GaussianBicScore, BGeScore, PredictiveLikelihood)):
             raise TypeError("Selected scoring_method {} incorrect for continuous data.".format(self.scoring_method))
         if not continuous and not isinstance(self.scoring_method, (BdeuScore, BicScore, K2Score)):
             raise TypeError("Selected scoring_method {} incorrect for discrete data".format(self.scoring_method))
-
 
         self.nodes = list(data.columns.values)
         self.nodes_indices = {var: index for index, var in enumerate(self.nodes)}
@@ -92,7 +92,11 @@ class CachedHillClimbing(StructureEstimator):
         node_index = self.nodes_indices[node]
         to_update = np.where(self.constraints_matrix[:, node_index])[0]
 
-        local_score = self.scoring_method.local_score
+        if isinstance(self.scoring_method, PredictiveLikelihood):
+            local_score = lambda node, parents: self.scoring_method.local_score(node, parents,
+                                                            NodeType.GAUSSIAN, {p: NodeType.GAUSSIAN for p in parents})
+        else:
+            local_score = self.scoring_method.local_score
 
         for other_index in to_update:
             other_node = self.nodes[other_index]
@@ -143,7 +147,11 @@ class CachedHillClimbing(StructureEstimator):
         node_index = self.nodes_indices[node]
         to_update = np.where(self.constraints_matrix[:, node_index])[0]
 
-        local_score = self.scoring_method.local_score
+        if isinstance(self.scoring_method, PredictiveLikelihood):
+            local_score = lambda node, parents: self.scoring_method.local_score(node, parents,
+                                                            NodeType.GAUSSIAN, {p: NodeType.GAUSSIAN for p in parents})
+        else:
+            local_score = self.scoring_method.local_score
 
         for other_index in to_update:
             other_node = self.nodes[other_index]
@@ -409,8 +417,10 @@ class CachedHillClimbing(StructureEstimator):
 
             print("Best op: " + str(op))
             self.apply_operator(op, current_model, scores)
+            self._draw(current_model, op, iter_no)
             print("Current score: " + str(self._total_score(current_model)))
 
+        self._draw(current_model, None, iter_no)
         final_score = self._total_score(current_model)
         print("Final score: " + str(final_score))
         return current_model
@@ -425,6 +435,58 @@ class CachedHillClimbing(StructureEstimator):
         total_score = 0
         for node in graph.nodes:
             parents = graph.get_parents(node)
-            total_score += self.scoring_method.local_score(node, parents)
+
+            if isinstance(self.scoring_method, PredictiveLikelihood):
+                local_score = lambda node, parents: self.scoring_method.local_score(node, parents,
+                                                                                    NodeType.GAUSSIAN, {p: NodeType.GAUSSIAN for p in parents})
+            else:
+                local_score = self.scoring_method.local_score
+
+            total_score += local_score(node, parents)
 
         return total_score
+
+    def _draw(self, graph, best_op, iter):
+
+        if isinstance(self.scoring_method, PredictiveLikelihood):
+            local_score = lambda node, parents: self.scoring_method.local_score(node, parents,
+                                                                                NodeType.GAUSSIAN, {p: NodeType.GAUSSIAN for p in parents})
+        else:
+            local_score = self.scoring_method.local_score
+
+        total_score = 0
+        for node in graph.nodes:
+            parents = graph.get_parents(node)
+            total_score += local_score(node, parents)
+
+        if best_op is None:
+            A = nx.nx_agraph.to_agraph(graph)
+            A.graph_attr.update(label="Score {:0.3f}".format(total_score), labelloc="t", fontsize='25')
+            A.write('iterations/{:03d}.dot'.format(iter))
+            A.clear()
+        else:
+            operation, source, dest, score = best_op
+
+            graph_copy = graph.copy()
+            if operation == '+':
+                graph_copy.edges[source, dest]['color'] = 'green3'
+                graph_copy.edges[source, dest]['label'] = "{:0.3f}".format(score)
+            elif operation == '-':
+                graph_copy.add_edge(source, dest)
+                graph_copy.edges[source, dest]['color'] = 'firebrick1'
+                graph_copy.edges[source, dest]['label'] = "{:0.3f}".format(score)
+            elif operation == 'flip':
+                graph_copy.edges[dest, source]['color'] = 'dodgerblue'
+                graph_copy.edges[dest, source]['label'] = "{:0.3f}".format(score)
+
+            A = nx.nx_agraph.to_agraph(graph_copy)
+            A.graph_attr.update(label="Score {:0.3f}".format(total_score), labelloc="t", fontsize='25')
+            A.write('iterations/{:03d}.dot'.format(iter))
+            A.clear()
+
+        import subprocess
+        subprocess.run(["dot", "-Tpdf", "iterations/{:03d}.dot".format(iter), "-o",
+                        "iterations/{:03d}.pdf".format(iter)])
+
+        import os
+        os.remove('iterations/{:03d}.dot'.format(iter))

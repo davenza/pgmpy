@@ -1,4 +1,6 @@
-class NodeType:
+from enum import Enum
+
+class NodeType(Enum):
     GAUSSIAN = 0
     CKDE = 1
 
