@@ -5,6 +5,7 @@ import pandas as pd
 
 from pgmpy.estimators import MaximumLikelihoodEstimator, CachedHillClimbing, HybridCachedHillClimbing, PredictiveLikelihood
 from pgmpy.factors.continuous import NodeType, CKDE_CPD
+from pgmpy.models import HybridContinuousModel
 
 from time import time
 
@@ -194,7 +195,7 @@ def total_score_pl(graph, pl):
     total_score = 0
     for node in graph.nodes:
         parents = graph.get_parents(node)
-        ls = pl.local_score(node, parents, NodeType.GAUSSIAN, {p: NodeType.GAUSSIAN for p in parents})
+        ls = pl.local_score(node, parents, graph.node_type[node], {p: graph.node_type[p] for p in parents})
         total_score += ls
 
     return total_score
@@ -209,28 +210,157 @@ if __name__ == '__main__':
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.GAUSSIAN})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.CKDE})
 
-    print("=======================")
-    print("=======================")
+    scoring_method = PredictiveLikelihood(ecoli_data, k=2, seed=0)
 
-    pl = PredictiveLikelihood(mixture_data, k=2)
+    a = scoring_method.local_score('yceP', ['fixC', 'ibpB'], NodeType.CKDE, {'fixC': NodeType.GAUSSIAN, 'ibpB': NodeType.GAUSSIAN})
+    # Out[33]: -930.5869349859206
+    b = scoring_method.local_score('yceP', ['ibpB', 'fixC', ], NodeType.CKDE, {'fixC': NodeType.GAUSSIAN, 'ibpB': NodeType.GAUSSIAN})
+    # Out[34]: -853.3000746577968
 
-    hc = HybridCachedHillClimbing(mixture_data, scoring_method=pl)
-    bn = hc.estimate()
+    print("a = " + str(a) + ", b = " + str(b))
 
-    # ghc = CachedHillClimbing(ecoli_data, scoring_method=pl)
-    # gbn = ghc.estimate()
+
+    # start = HybridContinuousModel()
+    # start.add_nodes_from(list(ecoli_data.columns.values))
+    # start.node_type['eutG'] = NodeType.CKDE
+    # start.node_type['yjbO'] = NodeType.CKDE
+    # start.node_type['yfaD'] = NodeType.CKDE
+    # start.node_type['yedE'] = NodeType.CKDE
+    # start.node_type['b1191'] = NodeType.CKDE
+    # start.node_type['icdA'] = NodeType.CKDE
+    # start.node_type['gltA'] = NodeType.CKDE
+    # start.node_type['lpdA'] = NodeType.CKDE
+    # start.node_type['ygcE'] = NodeType.CKDE
+    # start.node_type['yheI'] = NodeType.CKDE
+    # start.node_type['aceB'] = NodeType.CKDE
+    # start.node_type['lacA'] = NodeType.CKDE
+    # start.node_type['yfiA'] = NodeType.CKDE
+    # start.node_type['folK'] = NodeType.CKDE
+    # start.node_type['dnaG'] = NodeType.CKDE
+    # start.node_type['asnA'] = NodeType.CKDE
+    # start.node_type['yceP'] = NodeType.CKDE
+    # start.node_type['tnaA'] = NodeType.CKDE
+    # start.node_type['cchB'] = NodeType.CKDE
     #
-    to_bnlearn_str(bn)
+    # start.add_edge('eutG', 'ibpB')
+    #
+    # start.add_edge('ibpB', 'yfaD')
+    # start.add_edge('ibpB', 'yceP')
+    #
+    # start.add_edge('yfaD', 'atpG')
+    # start.add_edge('yfaD', 'flgD')
+    # start.add_edge('yfaD', 'sucD')
+    # start.add_edge('yfaD', 'fixC')
+    #
+    # start.add_edge('atpG', 'flgD')
+    #
+    # start.add_edge('flgD', 'sucD')
+    #
+    # start.add_edge('sucD', 'sucA')
+    #
+    # start.add_edge('yedE', 'yecO')
+    #
+    # start.add_edge('b1191', 'tnaA')
+    # start.add_edge('b1191', 'fixC')
+    # start.add_edge('b1191', 'folK')
+    # start.add_edge('b1191', 'ygcE')
+    # start.add_edge('b1191', 'icdA')
+    #
+    # start.add_edge('sucA', 'tnaA')
+    # start.add_edge('sucA', 'yheI')
+    # start.add_edge('sucA', 'icdA')
+    # start.add_edge('sucA', 'dnaJ')
+    # start.add_edge('sucA', 'gltA')
+    # start.add_edge('sucA', 'ygcE')
+    # start.add_edge('sucA', 'yhdM')
+    #
+    # start.add_edge('yecO', 'pspA')
+    # start.add_edge('yecO', 'lpdA')
+    #
+    # start.add_edge('icdA', 'ygcE')
+    # start.add_edge('icdA', 'asnA')
+    #
+    # start.add_edge('lpdA', 'cspG')
+    # start.add_edge('lpdA', 'pspB')
+    # start.add_edge('lpdA', 'nmpC')
+    # start.add_edge('lpdA', 'yheI')
+    #
+    # start.add_edge('ygcE', 'yheI')
+    # start.add_edge('ygcE', 'aceB')
+    # start.add_edge('ygcE', 'lacA')
+    # start.add_edge('ygcE', 'asnA')
+    #
+    # start.add_edge('cspG', 'yfiA')
+    # start.add_edge('cspG', 'yaeM')
+    #
+    # start.add_edge('yheI', 'ftsJ')
+    # start.add_edge('yheI', 'fixC')
+    # start.add_edge('yheI', 'mopB')
+    #
+    # start.add_edge('lacA', 'lacY')
+    # start.add_edge('lacA', 'nuoM')
+    # start.add_edge('lacA', 'lacZ')
+    #
+    # start.add_edge('yfiA', 'cspA')
+    #
+    # start.add_edge('ftsJ', 'dnaK')
+    #
+    # start.add_edge('lacY', 'nuoM')
+    #
+    # start.add_edge('mopB', 'dnaG')
+    #
+    # start.add_edge('cspA', 'hupB')
+    #
+    # start.add_edge('dnaK', 'folK')
+    #
+    # start.add_edge('lacZ', 'b1583')
+    #
+    # start.add_edge('folK', 'ycgX')
+    # start.add_edge('folK', 'b1963')
+    #
+    # start.add_edge('ycgX', 'fixC')
+    #
+    # start.add_edge('b1963', 'dnaG')
+    # start.add_edge('b1963', 'asnA')
+    #
+    # start.add_edge('fixC', 'yceP')
+    # start.add_edge('fixC', 'tnaA')
+    # start.add_edge('fixC', 'ygbD')
+    # start.add_edge('fixC', 'cchB')
+    #
+    # start.add_edge('dnaG', 'atpD')
+    #
+    # start.add_edge('yceP', 'b1583')
+    #
+    #
+    # print("=======================")
+    # print("=======================")
+    #
+    # db = ecoli_data.iloc[:1000]
+    #
+    # pl = PredictiveLikelihood(db, k=2, seed=0)
+    # # pl = PredictiveLikelihood(mixture_data)
+    #
+    # hc = HybridCachedHillClimbing(db, scoring_method=pl)
+    # # bn = hc.estimate(start=start)
+    # bn = hc.estimate()
+    #
+    # # ghc = CachedHillClimbing(ecoli_data, scoring_method=pl)
+    # # gbn = ghc.estimate()
+    # #
+    # to_bnlearn_str(bn)
+    #
+    # scores = []
+    # max_int_value = np.iinfo(np.int32).max
+    # for i in range(50):
+    #     seed = np.random.randint(0, max_int_value)
+    #     pl.change_seed(seed)
+    #
+    #     scores.append(total_score_pl(bn, pl))
+    #
+    # print("Other cross validation scores: " + str(scores))
 
-    scores = []
-    max_int_value = np.iinfo(np.int32).max
-    for i in range(50):
-        seed = np.random.randint(0, max_int_value)
-        pl.change_seed(seed)
 
-        scores.append(total_score_pl(bn, pl))
-
-    print("Other cross validation scores: " + str(scores))
     # pass
 
     # print("Score summary: ")

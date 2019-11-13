@@ -139,7 +139,7 @@ class HybridCachedHillClimbing(StructureEstimator):
 
                 other_node_type = model.node_type[other_node]
 
-                scores[node_index, other_index] = local_score(other_node, other_node_parents_new, other_node_type, model.node_type) +\
+                scores[other_index, node_index] = local_score(other_node, other_node_parents_new, other_node_type, model.node_type) +\
                                                 local_score(node, parents_new, node_type, model.node_type) -\
                                                 self.node_scores[other_index] -\
                                                 self.node_scores[node_index]
@@ -189,41 +189,35 @@ class HybridCachedHillClimbing(StructureEstimator):
                 #       )
 
     def _precompute_score_types_node(self, model, scores, node):
-
         node_index = self.nodes_indices[node]
         local_score = self.scoring_method.local_score
         parents = set(model.get_parents(node))
-        parents_type = model.node_type
         if model.node_type[node] == NodeType.GAUSSIAN:
-            scores[node_index] = local_score(node, parents, NodeType.CKDE, parents_type) - \
-                                 self.node_scores[node_index]
-            print("Caching changing type of node " + node + " to CKDE (" + str(scores[node_index]) + ")")
-
-            # str_p = ""
-            # for p in parents:
-            #     str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-            #
-            # print("\t P([" + node + "," + NodeType.str(NodeType.CKDE) + "] | " + str_p + ") - " +
-            #       "P([" + node + "," + NodeType.str(NodeType.GAUSSIAN) + "] | " + str_p + ") = " +
-            #       str(local_score(node, parents, NodeType.CKDE, parents_type)) + " - " +
-            #       str(local_score(node, parents, NodeType.GAUSSIAN, parents_type))
-            #       )
+            other_node_type = NodeType.CKDE
+            print("Caching changing type of node " + node + " to CKDE", end='')
         elif model.node_type[node] == NodeType.CKDE:
-            scores[node_index] = local_score(node, parents, NodeType.GAUSSIAN, parents_type) - \
-                                 self.node_scores[node_index]
-            print("Caching changing type of node " + node + " to Gaussian (" + str(scores[node_index]) + ")")
+            other_node_type = NodeType.GAUSSIAN
+            print("Caching changing type of node " + node + " to Gaussian", end='')
 
-            # str_p = ""
-            # for p in parents:
-            #     str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
-            #
-            # print("\t P([" + node + "," + NodeType.str(NodeType.GAUSSIAN) + "] | " + str_p + ") - " +
-            #       "P([" + node + "," + NodeType.str(NodeType.CKDE) + "] | " + str_p + ") = " +
-            #       str(local_score(node, parents, NodeType.GAUSSIAN, parents_type)) + " - " +
-            #       str(local_score(node, parents, NodeType.CKDE, parents_type))
-            #       )
         else:
             raise ValueError("Wrong node type for HybridContinuousModel.")
+
+        scores[node_index] = local_score(node, parents, other_node_type, model.node_type) - \
+                                 self.node_scores[node_index]
+
+        children = model.get_children(node)
+        for child in children:
+            if model.node_type[child] == NodeType.CKDE:
+                child_parents = model.get_parents(child)
+                new_parent_type = model.node_type.copy()
+                new_parent_type[node] = other_node_type
+                child_index = self.nodes_indices[child]
+
+                scores[node_index] += local_score(child, child_parents, model.node_type[child], new_parent_type) - \
+                                           self.node_scores[child_index]
+
+        print(" (" + str(scores[node_index]) + ")")
+
 
     def update_node_score_arcs(self, model, scores, node):
         """
@@ -356,6 +350,19 @@ class HybridCachedHillClimbing(StructureEstimator):
 
             # Delta score of adding arc 'other_node' -> 'node'
             else:
+                if other_node == 'fixC' and node == 'yceP':
+                    if not np.isclose(local_score(node, parents, node_type, model.node_type), self.node_scores[node_index]):
+                        print("Debug")
+
+                    print()
+
+                if other_node == 'ygcE' and node == 'tnaA':
+                    if not np.isclose(local_score(node, parents, node_type, model.node_type), self.node_scores[node_index]):
+                        print("Debug")
+
+                    print()
+
+
                 parents_new = parents.copy()
                 parents_new.add(other_node)
                 scores[other_index, node_index] = local_score(node, parents_new, node_type, model.node_type) - \
@@ -413,13 +420,14 @@ class HybridCachedHillClimbing(StructureEstimator):
 
         for child in children:
             if model.node_type[child] == NodeType.CKDE:
-                child_parents = set(model.get_parents(child))
+                child_parents = model.get_parents(child)
                 new_parent_type = model.node_type.copy()
                 new_parent_type[node] = other_node_type
                 child_index = self.nodes_indices[child]
                 type_scores[node_index] += local_score(child, child_parents, model.node_type[child], new_parent_type) - \
                                            self.node_scores[child_index]
 
+        print(" (" + str(type_scores[node_index]) + ")")
 
         # str_appendix_children = ""
         # str_appendix_numbers = ""
@@ -515,9 +523,9 @@ class HybridCachedHillClimbing(StructureEstimator):
 
             for child in children:
                 if model.node_type[child] == NodeType.CKDE:
-                    child_index = self.nodes_indices[dest]
-                    parents = model.get_parents(dest)
-                    self.node_scores[child_index] = local_score(child, parents, model.node_type[child_index], model.node_type)
+                    child_index = self.nodes_indices[child]
+                    parents = model.get_parents(child)
+                    self.node_scores[child_index] = local_score(child, parents, model.node_type[child], model.node_type)
 
             self.update_node_score_arcs(model, scores, source)
             self.update_node_score_types(model, type_scores, source)
@@ -725,6 +733,25 @@ class HybridCachedHillClimbing(StructureEstimator):
         if not nx.is_directed_acyclic_graph(graph):
             raise ValueError("Whitelisted arcs generates cycles in the starting graph.")
 
+
+    def has_converged(self, model, n_cross):
+        total_score = self._total_score(model)
+
+        other_scores = np.empty((n_cross,))
+        max_uint = np.iinfo(np.int32).max
+        for i in range(n_cross):
+            print(".", end='')
+            self.scoring_method.change_seed(np.random.randint(0, max_uint))
+            other_scores[i] = self._total_score(model)
+        print()
+
+        if np.abs(other_scores.mean() - total_score) < 2*np.std(other_scores):
+            return True
+        else:
+            print("Not converged")
+            return False
+
+
     # FIXME: Implement tabu.
     def estimate(
         self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, max_iter=1e6, seed=0, seed_iters=15
@@ -766,7 +793,11 @@ class HybridCachedHillClimbing(StructureEstimator):
 
         iter_no = 0
         # last_delta = np.finfo(np.float64).max
-        print("Starting score: " + str(self._total_score(current_model)))
+        print("Starting score: " + str(self._total_score_print(current_model)))
+
+        max_uint = np.iinfo(np.int32).max
+
+        current_score = self._total_score(current_model)
 
         while iter_no <= max_iter:
             iter_no += 1
@@ -780,21 +811,98 @@ class HybridCachedHillClimbing(StructureEstimator):
 
             op = best_operator_fun(current_model, scores, type_scores)
 
+            print("Iteration " + str(iter_no))
+            print("----------------------")
+
+            p = current_model.get_parents('yceP')
+            new_p = set(p.copy())
+            new_p.add('fixC')
+
+            d = self.scoring_method.local_score('yceP', new_p, current_model.node_type['yceP'], current_model.node_type) -\
+                self.scoring_method.local_score('yceP', p, current_model.node_type['yceP'], current_model.node_type)
+
+            scored_d = scores[self.nodes_indices['fixC'], self.nodes_indices['yceP']]
+
+            print()
+            print()
+            print()
+            print("Add fixC -> yceP score: Correct " + str(d) + " cached " + str(scored_d))
+            print()
+            print()
+            print()
+
+            if not np.isclose(d, scored_d) and not current_model.has_edge('fixC', 'yceP'):
+                input()
+
+
+            p = current_model.get_parents('tnaA')
+            new_p = set(p.copy())
+            new_p.add('ygcE')
+
+            d = self.scoring_method.local_score('tnaA', new_p, current_model.node_type['tnaA'], current_model.node_type) - \
+                self.scoring_method.local_score('tnaA', p, current_model.node_type['tnaA'], current_model.node_type)
+
+            scored_d = scores[self.nodes_indices['ygcE'], self.nodes_indices['tnaA']]
+
+            print()
+            print()
+            print()
+            print("Add ygcE -> tnaA score: Correct " + str(d) + " cached " + str(scored_d))
+            print()
+            print()
+            print()
+
+            if not np.isclose(d, scored_d) and not current_model.has_edge('ygcE', 'tnaA'):
+                input()
+
             if op is None:
-                break
+                if self.has_converged(current_model, 50):
+                    break
+                else:
+                    self.scoring_method.change_seed(np.random.randint(0, max_uint))
+                    self._precompute_cache_node_scores(current_model)
+                    self._precompute_cache_arcs(current_model, scores)
+                    self._precompute_cache_types(current_model, type_scores)
+                    continue
 
             delta_score = op[3]
             if delta_score < epsilon:
-                break
+                if self.has_converged(current_model, 50):
+                    break
+                else:
+                    self.scoring_method.change_seed(np.random.randint(0, max_uint))
+                    self._precompute_cache_node_scores(current_model)
+                    self._precompute_cache_arcs(current_model, scores)
+                    self._precompute_cache_types(current_model, type_scores)
+                    continue
+
 
             print("Best op: " + str(op))
             print("")
             self.apply_operator(op, current_model, scores, type_scores)
             self._draw(current_model, op, iter_no)
-            print("Current score: " + str(self._total_score(current_model)))
+            print("Current score: " + str(self._total_score_print(current_model)))
+
+            new_score = self._total_score(current_model)
+            if not np.isclose(new_score, current_score + delta_score):
+                # FIXME: The order in the parents affects the result: Is this because of the order in the gaussian regressions?
+                # self.scoring_method.local_score('yceP', ['fixC', 'ibpB'], current_model.node_type['yceP'], current_model.node_type)
+                # Out[33]: -930.5869349859206
+                # self.scoring_method.local_score('yceP', ['ibpB', 'fixC', ], current_model.node_type['yceP'], current_model.node_type)
+                # Out[34]: -853.3000746577968
+                print()
+                print()
+                print()
+                print("Bug on scores. New score: " + str(new_score) + " Expected score " + str(current_score + delta_score))
+                print()
+                print()
+                print()
+                input()
+            current_score = new_score
+
 
         self._draw(current_model, None, iter_no)
-        final_score = self._total_score(current_model)
+        final_score = self._total_score_print(current_model)
         print("Final score: " + str(final_score))
         return current_model
 
@@ -805,18 +913,40 @@ class HybridCachedHillClimbing(StructureEstimator):
         :param model: Graph to be evaluated.
         :return: Total score of the network.
         """
+        total_score = 0
+        for node in model.nodes:
+            node_index = self.nodes_indices[node]
+            parents = model.get_parents(node)
+            a = self.scoring_method.local_score(node, parents, model.node_type[node], model.node_type)
+
+            if a != self.node_scores[node_index]:
+                print("Bug in scores. Node " + node + " real score " + str(a) + " cached score " + str(self.node_scores[node_index]))
+                input()
+
+            total_score += a
+
+        return total_score
+
+    def _total_score_print(self, model):
+        """
+        Computes the total score in the network. As the score method is decomposable. The total score is the sum of
+        the local scores.
+        :param model: Graph to be evaluated.
+        :return: Total score of the network.
+        """
         print("")
         total_score = 0
         for node in model.nodes:
             parents = model.get_parents(node)
-            total_score += self.scoring_method.local_score(node, parents, model.node_type[node], model.node_type)
+            node_index = self.nodes_indices[node]
+            total_score += self.node_scores[node_index]
 
             str_p = ""
             for p in parents:
                 str_p += "[" + p + "," + NodeType.str(model.node_type[p]) + "], "
             print(
                 "P([" + node + "," + NodeType.str(model.node_type[node]) + "] | " + str_p + ") = " +
-                str(self.scoring_method.local_score(node, parents, model.node_type[node], model.node_type))
+                str(self.node_scores[node_index])
             )
 
         return total_score
@@ -839,7 +969,7 @@ class HybridCachedHillClimbing(StructureEstimator):
             # nx.nx_agraph.write_dot(graph_copy, 'iterations/{:03d}.dot'.format(iter))
             A = nx.nx_agraph.to_agraph(graph_copy)
             A.graph_attr.update(label="Score {:0.3f}".format(total_score), labelloc="t", fontsize='25')
-            A.write('iterations/{:03d}.dot'.format(iter))
+            A.write('iterations/{:06d}.dot'.format(iter))
             A.clear()
         else:
             operation, source, dest, score = best_op
@@ -866,12 +996,12 @@ class HybridCachedHillClimbing(StructureEstimator):
             # nx.nx_agraph.write_dot(graph_copy, 'iterations/{:03d}.dot'.format(iter))
             A = nx.nx_agraph.to_agraph(graph_copy)
             A.graph_attr.update(label="Score {:0.3f}".format(total_score), labelloc="t", fontsize='25')
-            A.write('iterations/{:03d}.dot'.format(iter))
+            A.write('iterations/{:06d}.dot'.format(iter))
             A.clear()
 
         import subprocess
-        subprocess.run(["dot", "-Tpdf", "iterations/{:03d}.dot".format(iter), "-o",
-                        "iterations/{:03d}.pdf".format(iter)])
+        subprocess.run(["dot", "-Tpdf", "iterations/{:06d}.dot".format(iter), "-o",
+                        "iterations/{:06d}.pdf".format(iter)])
 
         import os
-        os.remove('iterations/{:03d}.dot'.format(iter))
+        os.remove('iterations/{:06d}.dot'.format(iter))

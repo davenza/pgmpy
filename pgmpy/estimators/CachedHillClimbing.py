@@ -115,7 +115,7 @@ class CachedHillClimbing(StructureEstimator):
 
                 other_node_parents_new = other_node_parents.copy()
                 other_node_parents_new.remove(node)
-                scores[node_index, other_index] = local_score(other_node, other_node_parents_new) +\
+                scores[other_index, node_index] = local_score(other_node, other_node_parents_new) +\
                                                 local_score(node, parents_new) -\
                                                 local_score(other_node, other_node_parents) -\
                                                 local_score(node, parents)
