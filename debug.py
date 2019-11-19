@@ -6,6 +6,7 @@ import pandas as pd
 from pgmpy.estimators import MaximumLikelihoodEstimator, CachedHillClimbing, HybridCachedHillClimbing, PredictiveLikelihood
 from pgmpy.factors.continuous import NodeType, CKDE_CPD
 from pgmpy.models import HybridContinuousModel
+from pgmpy.estimators import GaussianBicScore, MaximumLikelihoodEstimator
 
 from time import time
 
@@ -85,7 +86,6 @@ def test_ckde_results(variable, evidence, node_type):
     iterate_train_low_memory(evidence, node_type, variable)
     print()
 
-
 def iterate_train_low_memory(evidence, node_type, variable):
     if not evidence:
         ckde_fun = CKDE_CPD._logdenominator_dataset
@@ -124,7 +124,6 @@ def iterate_train_low_memory(evidence, node_type, variable):
         "Wrong result for variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type) + \
         " in Test > Train Low Memory"
 
-
 def iterate_train_high_memory(evidence, node_type, variable):
     print("Test > Train High Memory")
     print("..............")
@@ -153,7 +152,6 @@ def iterate_train_high_memory(evidence, node_type, variable):
     assert np.isclose(py_result, rust_result), \
         "Wrong result for variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type) + \
         " in Test > Train High Memory"
-
 
 def iterate_test_results(evidence, node_type, variable):
     print("Train > test")
@@ -184,7 +182,6 @@ def iterate_test_results(evidence, node_type, variable):
         "Wrong result for variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type) + \
         " in Train > Test"
 
-
 def total_score_pl(graph, pl):
     """
     Computes the total score in the network. As the score method is decomposable. The total score is the sum of
@@ -203,175 +200,14 @@ def total_score_pl(graph, pl):
 if __name__ == '__main__':
 
     # test_ckde_results('c', [], {})
-    # test_ckde_results('c', ['a'], {'a' : NodeType.GAUSSIAN})
+    # test_ckde_results('c', ['a'], {'a': NodeType.GAUSSIAN})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.GAUSSIAN})
-    # test_ckde_results('c', ['a'], {'a' : NodeType.CKDE})
+    # test_ckde_results('c', ['a'], {'a': NodeType.CKDE})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.CKDE})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.GAUSSIAN})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.CKDE})
 
-    scoring_method = PredictiveLikelihood(ecoli_data, k=2, seed=0)
+    pl = PredictiveLikelihood(mixture_data, k=2, seed=0)
 
-    a = scoring_method.local_score('yceP', ['fixC', 'ibpB'], NodeType.CKDE, {'fixC': NodeType.GAUSSIAN, 'ibpB': NodeType.GAUSSIAN})
-    # Out[33]: -930.5869349859206
-    b = scoring_method.local_score('yceP', ['ibpB', 'fixC', ], NodeType.CKDE, {'fixC': NodeType.GAUSSIAN, 'ibpB': NodeType.GAUSSIAN})
-    # Out[34]: -853.3000746577968
-
-    print("a = " + str(a) + ", b = " + str(b))
-
-
-    # start = HybridContinuousModel()
-    # start.add_nodes_from(list(ecoli_data.columns.values))
-    # start.node_type['eutG'] = NodeType.CKDE
-    # start.node_type['yjbO'] = NodeType.CKDE
-    # start.node_type['yfaD'] = NodeType.CKDE
-    # start.node_type['yedE'] = NodeType.CKDE
-    # start.node_type['b1191'] = NodeType.CKDE
-    # start.node_type['icdA'] = NodeType.CKDE
-    # start.node_type['gltA'] = NodeType.CKDE
-    # start.node_type['lpdA'] = NodeType.CKDE
-    # start.node_type['ygcE'] = NodeType.CKDE
-    # start.node_type['yheI'] = NodeType.CKDE
-    # start.node_type['aceB'] = NodeType.CKDE
-    # start.node_type['lacA'] = NodeType.CKDE
-    # start.node_type['yfiA'] = NodeType.CKDE
-    # start.node_type['folK'] = NodeType.CKDE
-    # start.node_type['dnaG'] = NodeType.CKDE
-    # start.node_type['asnA'] = NodeType.CKDE
-    # start.node_type['yceP'] = NodeType.CKDE
-    # start.node_type['tnaA'] = NodeType.CKDE
-    # start.node_type['cchB'] = NodeType.CKDE
-    #
-    # start.add_edge('eutG', 'ibpB')
-    #
-    # start.add_edge('ibpB', 'yfaD')
-    # start.add_edge('ibpB', 'yceP')
-    #
-    # start.add_edge('yfaD', 'atpG')
-    # start.add_edge('yfaD', 'flgD')
-    # start.add_edge('yfaD', 'sucD')
-    # start.add_edge('yfaD', 'fixC')
-    #
-    # start.add_edge('atpG', 'flgD')
-    #
-    # start.add_edge('flgD', 'sucD')
-    #
-    # start.add_edge('sucD', 'sucA')
-    #
-    # start.add_edge('yedE', 'yecO')
-    #
-    # start.add_edge('b1191', 'tnaA')
-    # start.add_edge('b1191', 'fixC')
-    # start.add_edge('b1191', 'folK')
-    # start.add_edge('b1191', 'ygcE')
-    # start.add_edge('b1191', 'icdA')
-    #
-    # start.add_edge('sucA', 'tnaA')
-    # start.add_edge('sucA', 'yheI')
-    # start.add_edge('sucA', 'icdA')
-    # start.add_edge('sucA', 'dnaJ')
-    # start.add_edge('sucA', 'gltA')
-    # start.add_edge('sucA', 'ygcE')
-    # start.add_edge('sucA', 'yhdM')
-    #
-    # start.add_edge('yecO', 'pspA')
-    # start.add_edge('yecO', 'lpdA')
-    #
-    # start.add_edge('icdA', 'ygcE')
-    # start.add_edge('icdA', 'asnA')
-    #
-    # start.add_edge('lpdA', 'cspG')
-    # start.add_edge('lpdA', 'pspB')
-    # start.add_edge('lpdA', 'nmpC')
-    # start.add_edge('lpdA', 'yheI')
-    #
-    # start.add_edge('ygcE', 'yheI')
-    # start.add_edge('ygcE', 'aceB')
-    # start.add_edge('ygcE', 'lacA')
-    # start.add_edge('ygcE', 'asnA')
-    #
-    # start.add_edge('cspG', 'yfiA')
-    # start.add_edge('cspG', 'yaeM')
-    #
-    # start.add_edge('yheI', 'ftsJ')
-    # start.add_edge('yheI', 'fixC')
-    # start.add_edge('yheI', 'mopB')
-    #
-    # start.add_edge('lacA', 'lacY')
-    # start.add_edge('lacA', 'nuoM')
-    # start.add_edge('lacA', 'lacZ')
-    #
-    # start.add_edge('yfiA', 'cspA')
-    #
-    # start.add_edge('ftsJ', 'dnaK')
-    #
-    # start.add_edge('lacY', 'nuoM')
-    #
-    # start.add_edge('mopB', 'dnaG')
-    #
-    # start.add_edge('cspA', 'hupB')
-    #
-    # start.add_edge('dnaK', 'folK')
-    #
-    # start.add_edge('lacZ', 'b1583')
-    #
-    # start.add_edge('folK', 'ycgX')
-    # start.add_edge('folK', 'b1963')
-    #
-    # start.add_edge('ycgX', 'fixC')
-    #
-    # start.add_edge('b1963', 'dnaG')
-    # start.add_edge('b1963', 'asnA')
-    #
-    # start.add_edge('fixC', 'yceP')
-    # start.add_edge('fixC', 'tnaA')
-    # start.add_edge('fixC', 'ygbD')
-    # start.add_edge('fixC', 'cchB')
-    #
-    # start.add_edge('dnaG', 'atpD')
-    #
-    # start.add_edge('yceP', 'b1583')
-    #
-    #
-    # print("=======================")
-    # print("=======================")
-    #
-    # db = ecoli_data.iloc[:1000]
-    #
-    # pl = PredictiveLikelihood(db, k=2, seed=0)
-    # # pl = PredictiveLikelihood(mixture_data)
-    #
-    # hc = HybridCachedHillClimbing(db, scoring_method=pl)
-    # # bn = hc.estimate(start=start)
-    # bn = hc.estimate()
-    #
-    # # ghc = CachedHillClimbing(ecoli_data, scoring_method=pl)
-    # # gbn = ghc.estimate()
-    # #
-    # to_bnlearn_str(bn)
-    #
-    # scores = []
-    # max_int_value = np.iinfo(np.int32).max
-    # for i in range(50):
-    #     seed = np.random.randint(0, max_int_value)
-    #     pl.change_seed(seed)
-    #
-    #     scores.append(total_score_pl(bn, pl))
-    #
-    # print("Other cross validation scores: " + str(scores))
-
-
-    # pass
-
-    # print("Score summary: ")
-    # print("-------------------")
-    # total_score_pl(gbn, pl)
-    #
-    #
-    # max_int_value = np.iinfo(np.int32).max
-    # seed = np.random.randint(0, max_int_value)
-    # pl.change_seed(seed)
-    #
-    # print("Score summary (other seed): ")
-    # print("-------------------")
-    # total_score_pl(gbn, pl)
+    hc = HybridCachedHillClimbing(mixture_data, scoring_method=pl)
+    bn = hc.estimate()

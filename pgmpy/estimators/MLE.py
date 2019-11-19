@@ -202,7 +202,7 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         return MaximumLikelihoodEstimator.ckde_estimate_with_parents(node, parents, self.model.node_types, node_data)
 
     @classmethod
-    def ckde_estimate_with_parents(self, node, parents, parent_types, data):
+    def ckde_estimate_with_parents(cls, node, parents, parent_types, data):
         gaussian_parents = []
         ckde_parents = []
 
@@ -216,7 +216,7 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         chain_rule_parents = [node] + ckde_parents
 
         for g in gaussian_parents:
-            gaussian_cpds.append(self.gaussian_estimate_with_parents(g, chain_rule_parents, data))
+            gaussian_cpds.append(MaximumLikelihoodEstimator.gaussian_estimate_with_parents(g, chain_rule_parents, data))
             chain_rule_parents = chain_rule_parents.copy()
             chain_rule_parents.append(g)
 

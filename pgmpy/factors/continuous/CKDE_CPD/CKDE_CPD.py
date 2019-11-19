@@ -15,8 +15,6 @@ import atexit
 
 from math import log, pi
 
-from time import time
-
 class _CFFIDoubleArray(object):
     def __init__(self, array, ffi):
         self.shape = ffi.new("size_t[]", array.shape)

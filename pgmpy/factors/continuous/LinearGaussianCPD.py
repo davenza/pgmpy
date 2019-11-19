@@ -3,11 +3,11 @@
 from __future__ import division
 
 import numpy as np
-import pandas as pd
 from scipy.stats import norm
 
 from pgmpy.factors.base import BaseFactor
 
+import math
 
 class LinearGaussianCPD(BaseFactor):
     """
@@ -84,9 +84,7 @@ class LinearGaussianCPD(BaseFactor):
             # The first element of args is the value of the variable on which CPD is defined
             # and the rest of the elements give the mean values of the parent
             # variables.
-            mean = self.beta[0] + np.dot(self.beta[1:], np.asarray(args))
-
-            return norm.pdf(args[0], np.array(mean), self.variance)
+            pass
 
         return _pdf
 
@@ -96,17 +94,14 @@ class LinearGaussianCPD(BaseFactor):
             # The first element of args is the value of the variable on which CPD is defined
             # and the rest of the elements give the mean values of the parent
             # variables.
-            mean = self.beta[0] + np.dot(self.beta[1:], np.asarray(args))
-
-            return norm.logpdf(args[0], np.array(mean), self.variance)
+            pass
 
         return _logpdf
 
 
     def logpdf_dataset(self, dataset):
         means = self.beta[0] + np.sum(self.beta[1:]*dataset.loc[:,self.evidence], axis=1)
-
-        return norm.logpdf(dataset.loc[:,self.variable], means, self.variance).sum()
+        return norm.logpdf(dataset.loc[:,self.variable], means, math.sqrt(self.variance)).sum()
 
     def copy(self):
         """

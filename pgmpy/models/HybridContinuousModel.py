@@ -267,6 +267,8 @@ class HybridContinuousModel(BayesianModel):
             model_copy.add_cpds(*[cpd.copy() for cpd in self.cpds])
         return model_copy
 
+    # TODO: Add save model.
+
     def predict(self, data):
         """
         Implemented predict.
