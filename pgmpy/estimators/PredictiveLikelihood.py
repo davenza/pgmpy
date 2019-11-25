@@ -38,7 +38,7 @@ class PredictiveLikelihood(StructureScore):
 
             test_data = node_data.iloc[test_indices]
 
-            score += cpd.logpdf_dataset(test_data)
+            score += cpd.logpdf_dataset(test_data).sum()
 
         return score
 

@@ -1,9 +1,7 @@
-from pgmpy.models import BayesianModel
-
-from pgmpy.factors.continuous import LinearGaussianCPD, NodeType, CKDE_CPD
-
+import numpy as np
 import networkx as nx
-
+from pgmpy.models import BayesianModel
+from pgmpy.factors.continuous import LinearGaussianCPD, NodeType, CKDE_CPD
 
 class HybridContinuousModel(BayesianModel):
 
@@ -291,3 +289,12 @@ class HybridContinuousModel(BayesianModel):
         #         pred_values[k].append(v)
         #
         # return pd.DataFrame(pred_values, index=data.index)
+
+    def predict_logpdf(self, data):
+        logpdf = np.zeros((data.shape[0],))
+
+        for n in self.nodes:
+            cpd = self.get_cpds(n)
+            logpdf += cpd.logpdf_dataset(data)
+
+        return logpdf

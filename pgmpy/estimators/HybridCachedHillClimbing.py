@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
+from scipy.optimize import brentq as root
 import networkx as nx
 
 from pgmpy.estimators import StructureEstimator, PredictiveLikelihood
@@ -133,7 +134,7 @@ class HybridCachedHillClimbing(StructureEstimator):
                                                 local_score(node, parents_new, node_type, model.node_type) -\
                                                 self.node_scores[other_index] -\
                                                 self.node_scores[node_index]
-                print("Caching reversing arc " + node + " -> " + other_node + " (" + str(scores[node_index, other_index]) + ")")
+                print("Caching reversing arc " + node + " -> " + other_node + " (" + str(scores[other_index, node_index]) + ")")
             else:
                 # Delta score of adding arc 'other_node' -> 'node'
                 parents_new = parents.copy()
@@ -363,22 +364,164 @@ class HybridCachedHillClimbing(StructureEstimator):
             self.update_node_score_arcs(model, scores, source)
             self.update_node_score_types(model, type_scores, source)
 
-    def is_significant_operator(self, model, op, N, epsilon, alpha):
+
+    def ttest_onesample_sample_size_power(self, d, alpha, power, starting_N, alternative, maximum_samples):
+        """
+        From pwr.t.test R function.
+        :param d:
+        :param alpha:
+        :param power:
+        :param type:
+        :param alternative:
+        :return:
+        """
+        if alternative == "greater":
+            power_function = self.ttest_power_greater
+        elif alternative == "two.sided":
+            power_function = self.ttest_power_twosided
+            d = math.fabs(d)
+        elif alternative == "less":
+            power_function = self.ttest_power_less
+        else:
+            raise ValueError("alternative should be an string with one of the following values (\"less\", \"two.sided\", \"greater\")")
+
+
+        lower_power = power_function(starting_N, d, alpha)
+
+        if lower_power >= power:
+            return starting_N, lower_power
+
+        higher_power = power_function(maximum_samples, d, alpha)
+
+        if higher_power < power:
+            # Can't calculate enough samples
+            return maximum_samples, higher_power
+
+        needed_N = math.ceil(root(lambda n: power_function(n, d, alpha) - power, starting_N, maximum_samples))
+
+        return needed_N, power_function(needed_N, d, alpha)
+
+    def ttest_power_greater(self, n, d, alpha):
+        nu = n - 1
+        return 1-stats.nct.cdf(stats.t.ppf(1-alpha, nu), nu, math.sqrt(n)*d)
+
+    def ttest_power_twosided(self, n, d, alpha):
+        nu = n - 1
+        qu = stats.t.ppf(1-alpha, nu)
+
+        return 1-stats.nct.cdf(qu, nu, math.sqrt(n)*d) + (stats.nct.cdf(-qu, nu, math.sqrt(n)*d))
+
+    def ttest_power_less(self, n, d, alpha):
+        nu = n - 1
+        return stats.nct.cdf(stats.t.ppf(alpha, nu), nu, math.sqrt(n)*d)
+
+    def sample_crossvalidation_power_operation(self, model, op, scores, epsilon, d, alpha, starting_N):
+        N = starting_N
+
+        dest_type = model.node_type[op[2]]
+        if dest_type == NodeType.CKDE:
+            maximum_samples = 100
+        elif dest_type == NodeType.GAUSSIAN:
+            maximum_samples = 3000
+
+        needed_N, power = self.ttest_onesample_sample_size_power(d, alpha, 0.8, N, "greater", maximum_samples)
+
+        if needed_N is None:
+            return scores, N, None
+
+        while needed_N > N:
+            needed_scores = self.multiple_crossvalidation_operation_arcs(model, op, needed_N - N)
+            scores = np.hstack((scores, needed_scores))
+            N = needed_N
+
+            d = (scores.mean() - epsilon) / scores.std()
+
+            if d <= 0:
+                return scores, N, None
+
+            needed_N, power = self.ttest_onesample_sample_size_power(d, alpha, 0.8, N, "greater", maximum_samples)
+
+            if needed_N is None:
+                return scores, N, None
+
+        return scores, needed_N, power
+
+    def sample_crossvalidation_power_convergence(self, model, scores, total_score, d, alpha, starting_N):
+        N = starting_N
+
+        if any(n == NodeType.CKDE for n in model.node_type.values()):
+            maximum_samples = 100
+        else:
+            maximum_samples = 3000
+
+        needed_N, power = self.ttest_onesample_sample_size_power(d, alpha, 0.8, N, "two.sided", maximum_samples)
+
+        if needed_N is None:
+            return scores, N, None
+
+        max_uint = np.iinfo(np.int32).max
+        while needed_N > N:
+            additional_scores = np.empty((needed_N-N,))
+            print()
+            for i in range(needed_N-N):
+                print("\rMore convergence samples (" + str(needed_N - N) + "): " + str(i+1) + "/" + str(needed_N-N), end='')
+                self.scoring_method.change_seed(np.random.randint(0, max_uint))
+                additional_scores[i] = self._total_score(model)
+
+            scores = np.hstack((scores, additional_scores))
+            N = needed_N
+
+            d = (scores.mean() - total_score) / scores.std()
+
+            if d <= 0:
+                return scores, N, None
+
+            needed_N, power = self.ttest_onesample_sample_size_power(d, alpha, 0.8, N, "two.sided", maximum_samples)
+
+            if needed_N is None:
+                return scores, N, None
+
+        return scores, needed_N, power
+
+    def is_significant_operator(self, model, op, starting_N, epsilon, alpha):
         print("Checking significance for operator: " + str(op))
-        operation, _, _, _ = op
+        operation = op[0]
+        N = starting_N
 
         if operation == "+" or operation == "-" or operation == "flip":
             scores = self.multiple_crossvalidation_operation_arcs(model, op, N)
         elif operation == "type":
-            scores = self.multiple_crossvalidation_operation_types(model, op, N)
+           scores = self.multiple_crossvalidation_operation_types(model, op, N)
         else:
             raise ValueError("Wrong operator")
 
+        d = (scores.mean() - epsilon) / scores.std()
+
+        print("Scores mean: " + str(scores.mean()))
+        print("Scores std: " + str(scores.std()))
+
         t_statistic = (scores.mean() - epsilon) * math.sqrt(N) / scores.std()
 
-        print("\rCross validated_scores: " + str(scores))
+        print("Cross validated_scores: " + str(scores))
         print("p-value: ", 1-stats.t.cdf(t_statistic, N-1))
+
+        power = self.ttest_power_greater(N, d, alpha)
+        print("power: ", power)
+
         if stats.t.cdf(t_statistic, N-1) > 1-alpha:
+            if d > 0:
+                scores, N_new, power = self.sample_crossvalidation_power_operation(model, op, scores, epsilon, d, alpha, starting_N)
+
+                if N_new > N:
+                    t_statistic = (scores.mean() - epsilon) * math.sqrt(N_new) / scores.std()
+                    print("p-value: ", 1-stats.t.cdf(t_statistic, N_new-1))
+                    print("power: ", power)
+
+                    if stats.t.cdf(t_statistic, N_new-1) > 1-alpha:
+                        return True
+                    else:
+                        return False
+
             return True
         else:
             return False
@@ -401,8 +544,9 @@ class HybridCachedHillClimbing(StructureEstimator):
         scores = np.empty((N,))
         seeds = np.empty((N,), dtype=np.int32)
 
+        print()
         for i in range(N):
-            print("\r {}/{}".format(i+1, N), end='')
+            print("\rConvergence samples arcs: {}/{}".format(i+1, N), end='')
             seeds[i] = np.random.randint(0, max_uint)
             self.scoring_method.change_seed(seeds[i])
             scores[i] = self.scoring_method.local_score(dest, new_parents, model.node_type[dest], model.node_type) - \
@@ -413,11 +557,12 @@ class HybridCachedHillClimbing(StructureEstimator):
             source_parents_new = source_parents.copy()
             source_parents_new.append(dest)
             for i in range(N):
-                print("\r {}/{} (2)".format(i+1, N), end='')
+                print("\rConvergence samples arcs: {}/{} (flip)".format(i+1, N), end='')
                 self.scoring_method.change_seed(seeds[i])
                 scores[i] += self.scoring_method.local_score(source, source_parents_new, model.node_type[source], model.node_type) - \
                              self.scoring_method.local_score(source, source_parents, model.node_type[source], model.node_type)
 
+        print()
         self.scoring_method.change_seed(old_seed)
         return scores
 
@@ -450,6 +595,7 @@ class HybridCachedHillClimbing(StructureEstimator):
                     scores[i] += self.scoring_method.local_score(child, child_parents, model.node_type[child], new_parent_type) - \
                                  self.scoring_method.local_score(child, child_parents, model.node_type[child], model.node_type)
 
+        print()
         self.scoring_method.change_seed(old_seed)
         return scores
 
@@ -468,7 +614,7 @@ class HybridCachedHillClimbing(StructureEstimator):
         if (best_op[3] - epsilon) > significant_threshold:
             return best_op
         elif math.fabs(best_op[3] - epsilon) < significant_threshold:
-            significative = self.is_significant_operator(model, best_op, 100, epsilon, alpha)
+            significative = self.is_significant_operator(model, best_op, 10, epsilon, alpha)
             if significative:
                 return best_op
             else:
@@ -491,7 +637,7 @@ class HybridCachedHillClimbing(StructureEstimator):
         if (best_op[3] - epsilon) > significant_threshold:
             return best_op
         elif math.fabs(best_op[3] - epsilon) < significant_threshold:
-            significative = self.is_significant_operator(model, best_op, 100, epsilon, alpha)
+            significative = self.is_significant_operator(model, best_op, 10, epsilon, alpha)
             if significative:
                 return best_op
             else:
@@ -678,23 +824,38 @@ class HybridCachedHillClimbing(StructureEstimator):
             raise ValueError("Whitelisted arcs generates cycles in the starting graph.")
 
 
-    def has_converged(self, model, n_cross, alpha):
+    def has_converged(self, model, starting_N, alpha):
         total_score = self._total_score(model)
 
-        other_scores = np.empty((n_cross,))
+        N = starting_N
+
+        scores = np.empty((N,))
         max_uint = np.iinfo(np.int32).max
-        print("Checking convergence: ", end='', flush=True)
-        for i in range(n_cross):
-            print(".", end='', flush=True)
-            self.scoring_method.change_seed(np.random.randint(0, max_uint))
-            other_scores[i] = self._total_score(model)
+
         print()
-        print("other_scores: " + str(other_scores))
+        for i in range(N):
+            print("\rChecking convergence (" + str(N) + "): " + str(i+1) + "/" + str(N), end='')
+            self.scoring_method.change_seed(np.random.randint(0, max_uint))
+            scores[i] = self._total_score(model)
 
-        t_statistic = (other_scores.mean() - total_score) * math.sqrt(n_cross) / other_scores.std()
-        cdf_t = stats.t.cdf(t_statistic, n_cross-1)
+        d = (scores.mean() - total_score) / scores.std()
 
-        if cdf_t < alpha/2 or cdf_t > (1-alpha/2):
+        scores, N, power = self.sample_crossvalidation_power_convergence(model, scores, total_score, d, alpha, starting_N)
+
+        t_statistic = (scores.mean() - total_score) * math.sqrt(N) / scores.std()
+        cdf_t = stats.t.cdf(t_statistic, N-1)
+
+        if cdf_t >= 0.5:
+            p_value = (1-cdf_t)*2
+        else:
+            p_value = cdf_t*2
+
+        print()
+        print("Convergence analysis:")
+        print("--------------------------")
+        print("p-value: " + str(p_value))
+        print("power: " + str(power))
+        if cdf_t >= alpha/2 and cdf_t <= (1-alpha/2):
             return True
         else:
             print("Not converged")
@@ -763,7 +924,7 @@ class HybridCachedHillClimbing(StructureEstimator):
             print("----------------------")
 
             if op is None:
-                if self.has_converged(current_model, 50, significant_alpha):
+                if self.has_converged(current_model, 10, significant_alpha):
                     break
                 else:
                     self.scoring_method.change_seed(np.random.randint(0, max_uint))
@@ -833,8 +994,8 @@ class HybridCachedHillClimbing(StructureEstimator):
 
         for n in graph_copy.nodes:
             if graph_copy.node_type[n] == NodeType.CKDE:
-                graph_copy.node[n]['style'] = 'filled'
-                graph_copy.node[n]['fillcolor'] = 'gray'
+                graph_copy.nodes[n]['style'] = 'filled'
+                graph_copy.nodes[n]['fillcolor'] = 'gray'
 
 
         if best_op is None:
@@ -857,13 +1018,13 @@ class HybridCachedHillClimbing(StructureEstimator):
                 graph_copy.edges[dest, source]['color'] = 'dodgerblue'
                 graph_copy.edges[dest, source]['label'] = "{:0.3f}".format(score)
             elif operation == 'type' and dest == NodeType.CKDE:
-                graph_copy.node[source]['style'] = 'filled'
-                graph_copy.node[source]['fillcolor'] = 'darkolivegreen1'
-                graph_copy.node[source]['label'] = "{}\n{:0.3f}".format(source, score)
+                graph_copy.nodes[source]['style'] = 'filled'
+                graph_copy.nodes[source]['fillcolor'] = 'darkolivegreen1'
+                graph_copy.nodes[source]['label'] = "{}\n{:0.3f}".format(source, score)
             elif operation == 'type' and dest == NodeType.GAUSSIAN:
-                graph_copy.node[source]['style'] = 'filled'
-                graph_copy.node[source]['fillcolor'] = 'yellow'
-                graph_copy.node[source]['label'] = "{}\n{:0.3f}".format(source, score)
+                graph_copy.nodes[source]['style'] = 'filled'
+                graph_copy.nodes[source]['fillcolor'] = 'yellow'
+                graph_copy.nodes[source]['label'] = "{}\n{:0.3f}".format(source, score)
 
             # nx.nx_agraph.write_dot(graph_copy, 'iterations/{:03d}.dot'.format(iter))
             A = nx.nx_agraph.to_agraph(graph_copy)

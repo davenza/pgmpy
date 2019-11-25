@@ -172,7 +172,6 @@ class CKDE_CPD(BaseFactor):
                0.5*log(np.linalg.det(self.covariance)) - \
                logvar
 
-
     def _init_gaussian_regressors(self):
         self._ffi_gaussian_regressors = ffi.new("GaussianRegression*[]", self.n_gaussian)
         # Avoid freeing GaussianRegression before the CKDE is freed.
@@ -254,16 +253,15 @@ class CKDE_CPD(BaseFactor):
         pass
 
     def logpdf_dataset(self, dataset):
-        prob = 0
+
+        logpdf = self.kde_logpdf(dataset.loc[:,[self.variable] + self.kde_evidence])
+
         for i, gaussian_cpd in enumerate(self.gaussian_cpds):
-            prob += gaussian_cpd.logpdf_dataset(dataset)
+            logpdf += gaussian_cpd.logpdf_dataset(dataset)
 
-        prob += self.kde_logpdf(dataset.loc[:,[self.variable] + self.kde_evidence]).sum()
+        logpdf -= self._logdenominator_dataset(dataset.loc[:, [self.variable] + self.evidence])
 
-        denominator = self._logdenominator_dataset(dataset.loc[:, [self.variable] + self.evidence])
-        prob -= denominator
-
-        return prob
+        return logpdf
 
     def _logdenominator_dataset(self, dataset):
         if self.n_kde == 0:
@@ -271,14 +269,14 @@ class CKDE_CPD(BaseFactor):
                 return 0
             else:
                 # TODO Sum in the GPU?
-                return self._logdenominator_dataset_onlygaussian(dataset).sum()
+                return self._logdenominator_dataset_onlygaussian(dataset)
         else:
             if self.n_gaussian == 0:
                 # TODO Sum in the GPU?
-                return self._logdenominator_dataset_onlykde(dataset).sum()
+                return self._logdenominator_dataset_onlykde(dataset)
             else:
                 # TODO Sum in the GPU?
-                return self._logdenominator_dataset_mix(dataset).sum()
+                return self._logdenominator_dataset_mix(dataset)
 
     def _logdenominator_dataset_onlygaussian(self, dataset):
         points = np.atleast_2d(dataset.to_numpy())

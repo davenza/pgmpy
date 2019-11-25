@@ -207,7 +207,7 @@ if __name__ == '__main__':
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.GAUSSIAN})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.CKDE})
 
-    pl = PredictiveLikelihood(mixture_data, k=2, seed=0)
+    pl = PredictiveLikelihood(ecoli_data, k=2, seed=0)
 
-    hc = HybridCachedHillClimbing(mixture_data, scoring_method=pl)
+    hc = HybridCachedHillClimbing(ecoli_data, scoring_method=pl)
     bn = hc.estimate()
