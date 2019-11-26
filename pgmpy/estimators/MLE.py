@@ -182,8 +182,8 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         linregress_data = np.column_stack((np.ones(data.shape[0]), data[parents]))
         (beta, res, _, _) = np.linalg.lstsq(linregress_data, data[node], rcond=None)
 
-        if data.shape[0] <= 1:
-            variance = 0
+        if data.shape[0] <= 1 or res.size == 0 or res[0] == 0:
+            return None
         else:
             variance = res[0] / (data.shape[0] - 1)
 
@@ -199,7 +199,7 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
     def ckde_estimate(self, node):
         parents = sorted(self.model.get_parents(node))
         node_data = self.data[[node] + parents].dropna()
-        return MaximumLikelihoodEstimator.ckde_estimate_with_parents(node, parents, self.model.node_types, node_data)
+        return MaximumLikelihoodEstimator.ckde_estimate_with_parents(node, parents, self.model.node_type, node_data)
 
     @classmethod
     def ckde_estimate_with_parents(cls, node, parents, parent_types, data):

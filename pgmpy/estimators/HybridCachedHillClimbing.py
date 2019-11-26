@@ -117,7 +117,7 @@ class HybridCachedHillClimbing(StructureEstimator):
                 scores[other_index, node_index] = local_score(node, parents_new, node_type, model.node_type) - \
                                                     self.node_scores[node_index]
 
-                print("Caching removing arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
+                # print("Caching removing arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
             # Delta score of reversing arc 'node' -> 'other_node'
             elif model.has_edge(node, other_node):
                 other_node_parents = set(model.get_parents(other_node))
@@ -134,14 +134,14 @@ class HybridCachedHillClimbing(StructureEstimator):
                                                 local_score(node, parents_new, node_type, model.node_type) -\
                                                 self.node_scores[other_index] -\
                                                 self.node_scores[node_index]
-                print("Caching reversing arc " + node + " -> " + other_node + " (" + str(scores[other_index, node_index]) + ")")
+                # print("Caching reversing arc " + node + " -> " + other_node + " (" + str(scores[other_index, node_index]) + ")")
             else:
                 # Delta score of adding arc 'other_node' -> 'node'
                 parents_new = parents.copy()
                 parents_new.add(other_node)
                 scores[other_index, node_index] = local_score(node, parents_new, node_type, model.node_type) -\
                                                   self.node_scores[node_index]
-                print("Caching adding arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
+                # print("Caching adding arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
 
     def _precompute_score_types_node(self, model, scores, node):
         node_index = self.nodes_indices[node]
@@ -149,10 +149,10 @@ class HybridCachedHillClimbing(StructureEstimator):
         parents = set(model.get_parents(node))
         if model.node_type[node] == NodeType.GAUSSIAN:
             other_node_type = NodeType.CKDE
-            print("Caching changing type of node " + node + " to CKDE", end='')
+            # print("Caching changing type of node " + node + " to CKDE", end='')
         elif model.node_type[node] == NodeType.CKDE:
             other_node_type = NodeType.GAUSSIAN
-            print("Caching changing type of node " + node + " to Gaussian", end='')
+            # print("Caching changing type of node " + node + " to Gaussian", end='')
 
         else:
             raise ValueError("Wrong node type for HybridContinuousModel.")
@@ -171,7 +171,7 @@ class HybridCachedHillClimbing(StructureEstimator):
                 scores[node_index] += local_score(child, child_parents, model.node_type[child], new_parent_type) - \
                                            self.node_scores[child_index]
 
-        print(" (" + str(scores[node_index]) + ")")
+        # print(" (" + str(scores[node_index]) + ")")
 
 
     def update_node_score_arcs(self, model, scores, node):
@@ -210,7 +210,7 @@ class HybridCachedHillClimbing(StructureEstimator):
                 # Delta score of removing arc 'other_node' -> 'node'
                 scores[other_index, node_index] = local_score(node, parents_new, node_type, model.node_type) - \
                                                   self.node_scores[node_index]
-                print("Updating removing arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
+                # print("Updating removing arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
 
                 # Delta score of reversing arc 'other_node' -> 'node'
                 other_node_parents = set(model.get_parents(other_node))
@@ -224,7 +224,7 @@ class HybridCachedHillClimbing(StructureEstimator):
                                                 self.node_scores[other_index] - \
                                                 self.node_scores[node_index]
 
-                print("Updating reversing arc " + other_node + " -> " + node + " (" + str(scores[node_index, other_index]) + ")")
+                # print("Updating reversing arc " + other_node + " -> " + node + " (" + str(scores[node_index, other_index]) + ")")
             # Delta score of reversing arc 'node' -> 'other_node'
             elif model.has_edge(node, other_node):
                 other_node_parents = set(model.get_parents(other_node))
@@ -242,14 +242,14 @@ class HybridCachedHillClimbing(StructureEstimator):
                                                 self.node_scores[other_index] - \
                                                 self.node_scores[node_index]
 
-                print("Updating reversing arc " + node + " -> " + other_node + " (" + str(scores[other_index, node_index]) + ")")
+                # print("Updating reversing arc " + node + " -> " + other_node + " (" + str(scores[other_index, node_index]) + ")")
             # Delta score of adding arc 'other_node' -> 'node'
             else:
                 parents_new = parents.copy()
                 parents_new.add(other_node)
                 scores[other_index, node_index] = local_score(node, parents_new, node_type, model.node_type) - \
                                                   self.node_scores[node_index]
-                print("Updating adding arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
+                # print("Updating adding arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
 
     def update_node_score_types(self, model, type_scores, node):
         """
@@ -276,10 +276,10 @@ class HybridCachedHillClimbing(StructureEstimator):
 
         if node_type == NodeType.GAUSSIAN:
             other_node_type = NodeType.CKDE
-            print("Updating changing type of node " + node + " to CKDE", end='')
+            # print("Updating changing type of node " + node + " to CKDE", end='')
         elif node_type == NodeType.CKDE:
             other_node_type = NodeType.GAUSSIAN
-            print("Updating changing type of node " + node + " to Gaussian", end='')
+            # print("Updating changing type of node " + node + " to Gaussian", end='')
         else:
             raise ValueError("Wrong node type detected on node {}.", node)
 
@@ -297,7 +297,7 @@ class HybridCachedHillClimbing(StructureEstimator):
                 type_scores[node_index] += local_score(child, child_parents, model.node_type[child], new_parent_type) - \
                                            self.node_scores[child_index]
 
-        print(" (" + str(type_scores[node_index]) + ")")
+        # print(" (" + str(type_scores[node_index]) + ")")
 
     def apply_operator(self, op, model, scores, type_scores):
         """
@@ -417,20 +417,29 @@ class HybridCachedHillClimbing(StructureEstimator):
 
     def sample_crossvalidation_power_operation(self, model, op, scores, epsilon, d, alpha, starting_N):
         N = starting_N
+        operation = op[0]
 
-        dest_type = model.node_type[op[2]]
+        if operation == "+" or operation == "-" or operation == "flip":
+            dest_type = model.node_type[op[2]]
+            multiple_operation_fun = self.multiple_crossvalidation_operation_arcs
+        elif operation == "type":
+            dest_type = op[2]
+            multiple_operation_fun = self.multiple_crossvalidation_operation_types
+        else:
+            raise ValueError("Wrong operator")
+
         if dest_type == NodeType.CKDE:
             maximum_samples = 100
         elif dest_type == NodeType.GAUSSIAN:
             maximum_samples = 3000
 
-        needed_N, power = self.ttest_onesample_sample_size_power(d, alpha, 0.8, N, "greater", maximum_samples)
+        needed_N, power = self.ttest_onesample_sample_size_power(d, alpha, 0.8, N, "two.sided", maximum_samples)
 
         if needed_N is None:
             return scores, N, None
 
         while needed_N > N:
-            needed_scores = self.multiple_crossvalidation_operation_arcs(model, op, needed_N - N)
+            needed_scores = multiple_operation_fun(model, op, needed_N - N)
             scores = np.hstack((scores, needed_scores))
             N = needed_N
 
@@ -850,6 +859,7 @@ class HybridCachedHillClimbing(StructureEstimator):
         else:
             p_value = cdf_t*2
 
+        print("Other scores: " + str(scores))
         print()
         print("Convergence analysis:")
         print("--------------------------")
@@ -937,9 +947,13 @@ class HybridCachedHillClimbing(StructureEstimator):
             print()
             self.apply_operator(op, current_model, scores, type_scores)
             self._draw(current_model, op, iter_no)
-            print("Current score: " + str(self._total_score_print(current_model)))
+            current_model.save_model('iterations/{:06d}'.format(iter_no))
+
+            print("Current score: " + str(self.node_scores.sum()))
 
         self._draw(current_model, None, iter_no)
+        current_model.save_model('iterations/{:06d}'.format(iter_no))
+
         final_score = self._total_score_print(current_model)
         print("Final score: " + str(final_score))
         return current_model

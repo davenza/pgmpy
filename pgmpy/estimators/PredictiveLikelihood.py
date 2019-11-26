@@ -31,8 +31,13 @@ class PredictiveLikelihood(StructureScore):
             train_data = node_data.iloc[train_indices]
             if variable_type == NodeType.GAUSSIAN:
                 cpd = MaximumLikelihoodEstimator.gaussian_estimate_with_parents(variable, parents, train_data)
+                if cpd is None:
+                    return np.nan
             elif variable_type == NodeType.CKDE:
-                cpd = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, parents, parent_types, train_data)
+                try:
+                    cpd = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, parents, parent_types, train_data)
+                except np.linalg.LinAlgError:
+                    return np.nan
             else:
                 raise ValueError("Wrong node type for HybridContinuousModel.")
 
