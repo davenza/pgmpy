@@ -313,6 +313,9 @@ class HybridContinuousModel(BayesianModel):
         with open(filename, 'rb') as pickle_file:
             o = pickle.load(pickle_file)
 
+        if not hasattr(o, 'cpds'):
+            o.cpds = []
+
         return o
 
     def __getstate__(self):

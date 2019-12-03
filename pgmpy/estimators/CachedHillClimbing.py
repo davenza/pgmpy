@@ -3,7 +3,7 @@
 import numpy as np
 import networkx as nx
 
-from pgmpy.estimators import StructureEstimator, K2Score, GaussianBicScore, BdeuScore, BicScore, BGeScore, PredictiveLikelihood
+from pgmpy.estimators import StructureEstimator, K2Score, GaussianBicScore, BdeuScore, BicScore, BGeScore, CVPredictiveLikelihood
 from pgmpy.base import DAG
 
 from pgmpy.factors.continuous import NodeType
@@ -38,7 +38,7 @@ class CachedHillClimbing(StructureEstimator):
         else:
             self.scoring_method = scoring_method
 
-        if continuous and not isinstance(self.scoring_method, (GaussianBicScore, BGeScore, PredictiveLikelihood)):
+        if continuous and not isinstance(self.scoring_method, (GaussianBicScore, BGeScore, CVPredictiveLikelihood)):
             raise TypeError("Selected scoring_method {} incorrect for continuous data.".format(self.scoring_method))
         if not continuous and not isinstance(self.scoring_method, (BdeuScore, BicScore, K2Score)):
             raise TypeError("Selected scoring_method {} incorrect for discrete data".format(self.scoring_method))
@@ -92,7 +92,7 @@ class CachedHillClimbing(StructureEstimator):
         node_index = self.nodes_indices[node]
         to_update = np.where(self.constraints_matrix[:, node_index])[0]
 
-        if isinstance(self.scoring_method, PredictiveLikelihood):
+        if isinstance(self.scoring_method, CVPredictiveLikelihood):
             local_score = lambda node, parents: self.scoring_method.local_score(node, parents,
                                                             NodeType.GAUSSIAN, {p: NodeType.GAUSSIAN for p in parents})
         else:
@@ -147,7 +147,7 @@ class CachedHillClimbing(StructureEstimator):
         node_index = self.nodes_indices[node]
         to_update = np.where(self.constraints_matrix[:, node_index])[0]
 
-        if isinstance(self.scoring_method, PredictiveLikelihood):
+        if isinstance(self.scoring_method, CVPredictiveLikelihood):
             local_score = lambda node, parents: self.scoring_method.local_score(node, parents,
                                                             NodeType.GAUSSIAN, {p: NodeType.GAUSSIAN for p in parents})
         else:
@@ -436,7 +436,7 @@ class CachedHillClimbing(StructureEstimator):
         for node in graph.nodes:
             parents = graph.get_parents(node)
 
-            if isinstance(self.scoring_method, PredictiveLikelihood):
+            if isinstance(self.scoring_method, CVPredictiveLikelihood):
                 local_score = lambda node, parents: self.scoring_method.local_score(node, parents,
                                                                                     NodeType.GAUSSIAN, {p: NodeType.GAUSSIAN for p in parents})
             else:
@@ -448,7 +448,7 @@ class CachedHillClimbing(StructureEstimator):
 
     def _draw(self, graph, best_op, iter):
 
-        if isinstance(self.scoring_method, PredictiveLikelihood):
+        if isinstance(self.scoring_method, CVPredictiveLikelihood):
             local_score = lambda node, parents: self.scoring_method.local_score(node, parents,
                                                                                 NodeType.GAUSSIAN, {p: NodeType.GAUSSIAN for p in parents})
         else:

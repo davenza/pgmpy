@@ -3,7 +3,7 @@ import numpy as np
 np.random.seed(0)
 import pandas as pd
 
-from pgmpy.estimators import MaximumLikelihoodEstimator, CachedHillClimbing, HybridCachedHillClimbing, PredictiveLikelihood
+from pgmpy.estimators import MaximumLikelihoodEstimator, CachedHillClimbing, HybridCachedHillClimbing, CVPredictiveLikelihood
 from pgmpy.factors.continuous import NodeType, CKDE_CPD
 from pgmpy.models import HybridContinuousModel
 from pgmpy.estimators import GaussianBicScore, MaximumLikelihoodEstimator
@@ -207,7 +207,10 @@ if __name__ == '__main__':
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.GAUSSIAN})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.CKDE})
 
-    pl = PredictiveLikelihood(ecoli_data, k=2, seed=0)
+    # pl = PredictiveLikelihood(ecoli_data, k=2, seed=0)
+    # hc = HybridCachedHillClimbing(ecoli_data, scoring_method=pl)
+    # start = HybridContinuousModel.load_model('iterations/000081.pkl')
+    # bn = hc.estimate_backtracking(epsilon=5, significant_threshold=np.inf)
 
-    hc = HybridCachedHillClimbing(ecoli_data, scoring_method=pl)
-    bn = hc.estimate()
+    bnmodel = HybridContinuousModel.load_model('iterations/000081.pkl')
+    to_bnlearn_str(bnmodel)

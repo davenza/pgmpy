@@ -11,12 +11,12 @@ from sklearn.model_selection import KFold
 from pgmpy.estimators import MaximumLikelihoodEstimator
 from pgmpy.factors.continuous import NodeType
 
-class PredictiveLikelihood(StructureScore):
+class CVPredictiveLikelihood(StructureScore):
     def __init__(self, data, k=10, seed=0, **kwargs):
         self.seed = seed
         self.k = k
         self.fold_indices = list(KFold(k, shuffle=True, random_state=seed).split(data))
-        super(PredictiveLikelihood, self).__init__(data, **kwargs)
+        super(CVPredictiveLikelihood, self).__init__(data, **kwargs)
 
     def change_seed(self, seed):
         self.seed = seed

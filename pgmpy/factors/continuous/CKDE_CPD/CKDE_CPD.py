@@ -253,7 +253,6 @@ class CKDE_CPD(BaseFactor):
         pass
 
     def logpdf_dataset(self, dataset):
-
         logpdf = self.kde_logpdf(dataset.loc[:,[self.variable] + self.kde_evidence])
 
         for i, gaussian_cpd in enumerate(self.gaussian_cpds):
