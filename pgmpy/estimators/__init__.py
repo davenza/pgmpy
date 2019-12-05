@@ -8,6 +8,7 @@ from pgmpy.estimators.BicScore import BicScore
 from pgmpy.estimators.GaussianBicScore import GaussianBicScore
 from pgmpy.estimators.BGeScore import BGeScore
 from pgmpy.estimators.CVPredictiveLikelihood import CVPredictiveLikelihood
+from pgmpy.estimators.ValidationLikelihood import ValidationLikelihood
 from pgmpy.estimators.ExhaustiveSearch import ExhaustiveSearch
 from pgmpy.estimators.HillClimbSearch import HillClimbSearch
 from pgmpy.estimators.CachedHillClimbing import CachedHillClimbing
@@ -33,6 +34,7 @@ __all__ = [
     "GaussianBicScore",
     "BGeScore",
     "CVPredictiveLikelihood",
+    "ValidationLikelihood",
     "SEMEstimator",
     "IVEstimator",
 ]
