@@ -173,85 +173,6 @@ class HybridCachedHillClimbing(StructureEstimator):
 
         # print(" (" + str(scores[node_index]) + ")")
 
-
-    def update_node_score_arcs(self, model, scores, node):
-        """
-        Updates the relevant scores for a given node. When a change is produced, only scores related with dest_node
-        need to be updated. This method updates only those scores (page 818 of Koller & Friedman, 2009). Take into
-        account that whitelisted/blacklisted score movements need not to be updated. In particular:
-
-        * if an arc i->j is blacklisted:
-            - source[i,j] is never computed.
-            - source[j,i] is computed.
-        * if an arc i->j is whitelisted:
-            - source[i,j] is not computed.
-            - source[j,i] is not computed.
-
-        :param model: Graph of the current model.
-        :param scores: Matrix n x n of scores to be updated.
-        :param node: Node where there was a change in the graph that needs updating scores.
-        :return:
-        """
-        parents = set(model.get_parents(node))
-        node_index = self.nodes_indices[node]
-        to_update = np.where(self.constraints_matrix[:, node_index])[0]
-
-        local_score = self.scoring_method.local_score
-
-        node_type = model.node_type[node]
-
-        for other_index in to_update:
-            other_node = self.nodes[other_index]
-
-            if model.has_edge(other_node, node):
-                parents_new = parents.copy()
-                parents_new.remove(other_node)
-
-                # Delta score of removing arc 'other_node' -> 'node'
-                scores[other_index, node_index] = local_score(node, parents_new, node_type, model.node_type) - \
-                                                  self.node_scores[node_index]
-                # print("Updating removing arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
-
-                # Delta score of reversing arc 'other_node' -> 'node'
-                other_node_parents = set(model.get_parents(other_node))
-                other_node_parents_new = other_node_parents.copy()
-                other_node_parents_new.add(node)
-
-                other_node_type = model.node_type[other_node]
-
-                scores[node_index, other_index] = local_score(other_node, other_node_parents_new, other_node_type, model.node_type) +\
-                                                local_score(node, parents_new, node_type, model.node_type) - \
-                                                self.node_scores[other_index] - \
-                                                self.node_scores[node_index]
-
-                # print("Updating reversing arc " + other_node + " -> " + node + " (" + str(scores[node_index, other_index]) + ")")
-            # Delta score of reversing arc 'node' -> 'other_node'
-            elif model.has_edge(node, other_node):
-                other_node_parents = set(model.get_parents(other_node))
-
-                parents_new = parents.copy()
-                parents_new.add(other_node)
-
-                other_node_parents_new = other_node_parents.copy()
-                other_node_parents_new.remove(node)
-
-                other_node_type = model.node_type[other_node]
-
-                scores[other_index, node_index] = local_score(other_node, other_node_parents_new, other_node_type, model.node_type) +\
-                                                local_score(node, parents_new, node_type, model.node_type) - \
-                                                self.node_scores[other_index] - \
-                                                self.node_scores[node_index]
-
-                # print("Updating reversing arc " + node + " -> " + other_node + " (" + str(scores[other_index, node_index]) + ")")
-            # Delta score of adding arc 'other_node' -> 'node'
-            else:
-                parents_new = parents.copy()
-                parents_new.add(other_node)
-                scores[other_index, node_index] = local_score(node, parents_new, node_type, model.node_type) - \
-                                                  self.node_scores[node_index]
-
-                # print("Updating adding arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
-
     def update_node_score_types(self, model, type_scores, node):
         """
         Updates the relevant scores for a given node. When a change is produced, only scores related with dest_node
@@ -327,39 +248,35 @@ class HybridCachedHillClimbing(StructureEstimator):
         return self.score_remove_arc(model, source, dest) + self.score_add_arc(model, dest, source)
 
 
-    def update_scores_arcs_to(self, model, scores, dest):
+    def set_update_arcs_to_node(self, model, dest):
         dest_index = self.nodes_indices[dest]
 
         to_update = np.where(self.constraints_matrix[:, dest_index])[0]
 
+        update_set = set()
         for other_index in to_update:
             other_node = self.nodes[other_index]
 
             if model.has_edge(other_node, dest):
                 # Delta score of removing arc 'other_node' -> 'dest'
-                scores[other_index, dest_index] = self.score_remove_arc(model, other_node, dest)
-                # print("Updating removing arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
-
+                update_set.add((other_node, dest))
                 # Delta score of reversing arc 'other_node' -> 'dest'
-                # TODO: Check that this optimization works: scores[dest_index, other_index] += scores[other_index, dest_index] - old_remove_score
-                scores[dest_index, other_index] = scores[other_index, dest_index] + self.score_add_arc(model, dest, other_node)
-                # print("Updating reversing arc " + other_node + " -> " + node + " (" + str(scores[node_index, other_index]) + ")")
-
+                update_set.add((dest, other_node))
             # Delta score of reversing arc 'dest' -> 'other_node'
             elif model.has_edge(dest, other_node):
-                scores[other_index, dest_index] = self.score_flip_arc(model, dest, other_node)
-                # print("Updating reversing arc " + node + " -> " + other_node + " (" + str(scores[other_index, node_index]) + ")")
-
+                update_set.add((other_node, dest))
             # Delta score of adding arc 'other_node' -> 'dest'
             else:
-                scores[other_index, dest_index] = self.score_add_arc(model, other_node, dest)
-                # print("Updating adding arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
+                update_set.add((other_node, dest))
 
-    def update_scores_arcs_from_ckde(self, model, scores, source):
+        return update_set
+
+    def set_update_arcs_from_ckde(self, model, source):
         source_index = self.nodes_indices[source]
 
         to_update = np.where(self.constraints_matrix[source_index, :])[0]
 
+        update_set = set()
         for other_index in to_update:
             other_node = self.nodes[other_index]
 
@@ -368,13 +285,37 @@ class HybridCachedHillClimbing(StructureEstimator):
 
             if model.has_edge(source, other_node):
                 # Delta score of removing arc 'source' -> 'other_node'
-                scores[source_index, other_index] = self.score_remove_arc(model, source, other_node)
-                # print("Updating removing arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
+                update_set.add((source, other_node))
 
             elif not model.has_edge(other_node, source):
+                update_set.add((source, other_node))
                 # Delta score of adding arc 'source' -> 'other_node'
-                scores[source_index, other_index] = self.score_add_arc(model, source, other_node)
-                # print("Updating reversing arc " + node + " -> " + other_node + " (" + str(scores[other_index, node_index]) + ")")
+
+        return update_set
+
+    def update_node_scores(self, model, node_set):
+        local_score = self.scoring_method.local_score
+        for n in node_set:
+            parents = model.get_parents(n)
+            n_index = self.nodes_indices[n]
+            self.node_scores[n_index] = local_score(n, parents, model.node_type[n], model.node_type)
+
+    def update_arc_scores(self, model, scores, arc_set):
+        for (source, dest) in arc_set:
+            source_index = self.nodes_indices[source]
+            dest_index = self.nodes_indices[dest]
+
+            if model.has_edge(source, dest):
+                scores[source_index, dest_index] = self.score_remove_arc(model, source, dest)
+            elif model.has_edge(dest, source):
+                scores[source_index, dest_index] = self.score_flip_arc(model, dest, source)
+            else:
+                scores[source_index, dest_index] = self.score_add_arc(model, source, dest)
+
+    def update_type_scores(self, model, type_scores, node_set):
+        for n in node_set:
+            self.update_node_score_types(model, type_scores, n)
+
 
     def apply_operator(self, op, model, scores, type_scores):
         """
@@ -386,160 +327,73 @@ class HybridCachedHillClimbing(StructureEstimator):
         """
         operation, source, dest, _ = op
 
-        local_score = self.scoring_method.local_score
+
+        to_update_nodes = set()
+        to_update_arcs = set()
+        to_update_types = set()
 
         if operation == "+":
             model.add_edge(source, dest)
-            dest_index = self.nodes_indices[dest]
-            dest_parents = model.get_parents(dest)
-            dest_type = model.node_type[dest]
 
-            self.node_scores[dest_index] = local_score(dest, dest_parents, dest_type, model.node_type)
-
-            self.update_scores_arcs_to(model, scores, dest)
-            self.update_node_score_types(model, type_scores, dest)
+            to_update_nodes.add(dest)
+            to_update_arcs.update(self.set_update_arcs_to_node(model, dest))
+            to_update_types.add(dest)
 
             if model.node_type[dest] == NodeType.CKDE:
                 for p in model.get_parents(dest):
-                    self.update_node_score_types(model, type_scores, p)
+                    to_update_types.add(p)
 
-            # dest_index = self.nodes_indices[dest]
-            # parents = model.get_parents(dest)
-            # self.node_scores[dest_index] = local_score(dest, parents, model.node_type[dest], model.node_type)
-            #
-            # self.update_node_score_arcs(model, scores, dest)
-            # self.update_node_score_types(model, type_scores, dest)
-            #
-            # if model.node_type[dest] == NodeType.CKDE:
-            #     for p in model.get_parents(dest):
-            #         self.update_node_score_types(model, type_scores, p)
         elif operation == "-":
             model.remove_edge(source, dest)
-            source_index, dest_index = self.nodes_indices[source], self.nodes_indices[dest]
-            dest_parents = model.get_parents(dest)
-            dest_type = model.node_type[dest]
 
-            self.node_scores[dest_index] = local_score(dest, dest_parents, dest_type, model.node_type)
-
-            self.update_scores_arcs_to(model, scores, dest)
+            to_update_nodes.add(dest)
+            to_update_arcs.update(self.set_update_arcs_to_node(model, dest))
             # Update the score of adding the score in the opposite direction (dest -> source).
-            scores[dest_index, source_index] = self.score_add_arc(model, dest, source)
+            to_update_arcs.add((dest, source))
 
-            self.update_node_score_types(model, type_scores, dest)
+            to_update_types.add(dest)
 
             if model.node_type[dest] == NodeType.CKDE:
                 for p in model.get_parents(dest):
-                    self.update_node_score_types(model, type_scores, p)
-
-
-            # dest_index = self.nodes_indices[dest]
-            # parents = model.get_parents(dest)
-            # self.node_scores[dest_index] = local_score(dest, parents, model.node_type[dest], model.node_type)
-            #
-            # self.update_node_score_arcs(model, scores, dest)
-            # # ###################################
-            # # Adding the arc in the other direction
-            # # ###################################
-            # dest_index = self.nodes_indices[dest]
-            # source_index = self.nodes_indices[source]
-            #
-            # source_parents = set(model.get_parents(source))
-            # source_parents_new = source_parents.copy()
-            # source_parents_new.add(dest)
-            #
-            #
-            # scores[dest_index, source_index] = local_score(source, source_parents_new, model.node_type[source], model.node_type) - \
-            #                                    local_score(source, source_parents, model.node_type[source], model.node_type)
-            #
-            #
-            # # ###################################
-            # # ###################################
-            # # ###################################
-            #
-            # self.update_node_score_types(model, type_scores, dest)
-            #
-            # if model.node_type[dest] == NodeType.CKDE:
-            #     for p in model.get_parents(dest):
-            #         self.update_node_score_types(model, type_scores, p)
+                    to_update_types.add(p)
 
         elif operation == "flip":
             model.remove_edge(source, dest)
             model.add_edge(dest, source)
 
-            source_index, dest_index = self.nodes_indices[source], self.nodes_indices[dest]
-            source_parents, dest_parents = model.get_parents(source), model.get_parents(dest)
-            source_type, dest_type = model.node_type[source], model.node_type[dest]
+            to_update_nodes.update((source, dest))
 
-            self.node_scores[dest_index] = local_score(dest, dest_parents, dest_type, model.node_type)
-            self.node_scores[source_index] = local_score(source, source_parents, source_type, model.node_type)
+            to_update_arcs.update(self.set_update_arcs_to_node(model, dest))
+            to_update_arcs.update(self.set_update_arcs_to_node(model, source))
 
-            self.update_scores_arcs_to(model, scores, dest)
-            self.update_scores_arcs_to(model, scores, source)
+            to_update_types.update((dest, source))
 
-            self.update_node_score_types(model, type_scores, dest)
-            self.update_node_score_types(model, type_scores, source)
-
-            to_update = set()
             if model.node_type[dest] == NodeType.CKDE:
-                to_update.update(model.get_parents(dest))
+                to_update_types.update(model.get_parents(dest))
             if model.node_type[source] == NodeType.CKDE:
-                to_update.update(model.get_parents(source))
+                to_update_types.update(model.get_parents(source))
 
-            to_update.discard(dest)
-            to_update.discard(source)
-
-            for p in to_update:
-                self.update_node_score_types(model, type_scores, p)
-
-
-
-            # dest_index = self.nodes_indices[dest]
-            # parents = model.get_parents(dest)
-            # self.node_scores[dest_index] = local_score(dest, parents, model.node_type[dest], model.node_type)
-            #
-            # source_index = self.nodes_indices[source]
-            # parents = model.get_parents(source)
-            # self.node_scores[source_index] = local_score(source, parents, model.node_type[source], model.node_type)
-            #
-            #
-            # # TODO FIXME: The local score for reversing the arc 'source' -> 'dest' is computed twice, once for each call to update_node_score().
-            # self.update_node_score_arcs(model, scores, source)
-            # self.update_node_score_arcs(model, scores, dest)
-            # self.update_node_score_types(model, type_scores, dest)
-            # self.update_node_score_types(model, type_scores, source)
-            #
-            # to_update = set()
-            # if model.node_type[dest] == NodeType.CKDE:
-            #     to_update.update(model.get_parents(dest))
-            # if model.node_type[source] == NodeType.CKDE:
-            #     to_update.update(model.get_parents(source))
-            #
-            # for p in to_update:
-            #     self.update_node_score_types(model, type_scores, p)
         elif operation == "type":
             model.node_type[source] = dest
 
-            source_index = self.nodes_indices[source]
-            parents = model.get_parents(source)
-            self.node_scores[source_index] = local_score(source, parents, model.node_type[source], model.node_type)
+            to_update_nodes.add(source)
 
             children = model.get_children(source)
-            to_update = set(model.get_parents(source) + model.get_children(source))
             for child in children:
                 if model.node_type[child] == NodeType.CKDE:
-                    child_index = self.nodes_indices[child]
-                    parents = model.get_parents(child)
-                    self.node_scores[child_index] = local_score(child, parents, model.node_type[child], model.node_type)
-                    to_update.update(model.get_parents(child))
-                    self.update_scores_arcs_to(model, scores, child)
+                    to_update_nodes.add(child)
+                    to_update_arcs.update(self.set_update_arcs_to_node(model, child))
+                    to_update_types.update(model.get_parents(child))
 
-            self.update_scores_arcs_to(model, scores, source)
-            self.update_scores_arcs_from_ckde(model, scores, source)
-            self.update_node_score_types(model, type_scores, source)
+            to_update_arcs.update(self.set_update_arcs_to_node(model, source))
+            to_update_arcs.update(self.set_update_arcs_from_ckde(model, source))
 
-            to_update.discard(source)
-            for p in to_update:
-                self.update_node_score_types(model, type_scores, p)
+            to_update_types.update(model.get_parents(source) + children)
+            to_update_types.add(source)
+
+        self.update_node_scores(model, to_update_nodes)
+        self.update_arc_scores(model, scores, to_update_arcs)
+        self.update_type_scores(model, type_scores, to_update_types)
 
     def ttest_onesample_sample_size_power(self, d, alpha, power, starting_N, alternative, maximum_samples):
         """
