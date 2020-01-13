@@ -1,9 +1,5 @@
 #!/usr/bin/env python
-
-from math import log
-
 import numpy as np
-import scipy
 from pgmpy.estimators import StructureScore
 
 from sklearn.model_selection import train_test_split, KFold
@@ -11,11 +7,14 @@ from sklearn.model_selection import train_test_split, KFold
 from pgmpy.estimators import MaximumLikelihoodEstimator
 from pgmpy.factors.continuous import NodeType
 
+
 class ValidationLikelihood(StructureScore):
+
     def __init__(self, data, validation_ratio=0.2, k=10, seed=0, **kwargs):
         self.seed = seed
         self.validation_ratio = validation_ratio
-        self.data, self.validation_data = train_test_split(data, test_size=self.validation_ratio, shuffle=True, random_state=seed)
+        self.data, self.validation_data = train_test_split(data, test_size=self.validation_ratio, shuffle=True,
+                                                           random_state=seed)
         self.k = k
         self.fold_indices = list(KFold(k, shuffle=True, random_state=seed).split(self.data))
         self.validation_fold_indices = list(KFold(k, shuffle=True, random_state=seed).split(self.validation_data))
@@ -24,7 +23,8 @@ class ValidationLikelihood(StructureScore):
 
     # def change_seed(self, seed):
     #     self.seed = seed
-    #     self.train_data, self.validation_data = train_test_split(self.data, self.validation_ratio, shuffle=True, random_state=seed)
+    #     self.train_data, self.validation_data = \
+    #         train_test_split(self.data, self.validation_ratio, shuffle=True, random_state=seed)
 
     def local_score(self, variable, parents, variable_type, parent_types):
         score = 0
@@ -39,7 +39,8 @@ class ValidationLikelihood(StructureScore):
                     return np.nan
             elif variable_type == NodeType.CKDE:
                 try:
-                    cpd = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, parents, parent_types, train_data)
+                    cpd = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, parents, parent_types,
+                                                                                train_data)
                 except np.linalg.LinAlgError:
                     return np.nan
             else:

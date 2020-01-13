@@ -11,11 +11,14 @@ from sklearn.model_selection import train_test_split, KFold
 from pgmpy.estimators import MaximumLikelihoodEstimator
 from pgmpy.factors.continuous import NodeType
 
+
 class GaussianValidationLikelihood(StructureScore):
+
     def __init__(self, data, validation_ratio=0.2, k=10, seed=0, **kwargs):
         self.seed = seed
         self.validation_ratio = validation_ratio
-        self.data, self.validation_data = train_test_split(data, test_size=self.validation_ratio, shuffle=True, random_state=seed)
+        self.data, self.validation_data = train_test_split(data, test_size=self.validation_ratio, shuffle=True,
+                                                           random_state=seed)
         self.k = k
         self.fold_indices = list(KFold(k, shuffle=True, random_state=seed).split(self.data))
         self.validation_fold_indices = list(KFold(k, shuffle=True, random_state=seed).split(self.validation_data))
@@ -23,7 +26,8 @@ class GaussianValidationLikelihood(StructureScore):
 
     # def change_seed(self, seed):
     #     self.seed = seed
-    #     self.train_data, self.validation_data = train_test_split(self.data, self.validation_ratio, shuffle=True, random_state=seed)
+    #     self.train_data, self.validation_data = \
+    #         train_test_split(self.data, self.validation_ratio, shuffle=True, random_state=seed)
 
     def local_score(self, variable, parents):
         score = 0

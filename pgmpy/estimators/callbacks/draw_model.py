@@ -6,6 +6,7 @@ from pgmpy.factors.continuous import NodeType
 import networkx as nx
 import subprocess
 
+
 class DrawModel(Callback):
 
     def __init__(self, folder):
@@ -28,11 +29,11 @@ class DrawModel(Callback):
             parents = model.get_parents(node)
             total_score += sc(node, parents)
 
-        if isinstance(model, (HybridContinuousModel)):
-            for n in model_copy.nodes:
-                if model_copy.node_type[n] == NodeType.CKDE:
-                    model_copy.nodes[n]['style'] = 'filled'
-                    model_copy.nodes[n]['fillcolor'] = 'gray'
+        if isinstance(model, HybridContinuousModel):
+            for node in model_copy.nodes:
+                if model_copy.node_type[node] == NodeType.CKDE:
+                    model_copy.nodes[node]['style'] = 'filled'
+                    model_copy.nodes[node]['fillcolor'] = 'gray'
 
         if operation is not None:
             op, source, dest, score = operation
@@ -61,16 +62,15 @@ class DrawModel(Callback):
             val_score = 0
             for node in model.nodes:
                 parents = model.get_parents(node)
-                val_score += scoring_method.validation_local_score(node, parents, model.node_type[node], model.node_type)
+                val_score += \
+                    scoring_method.validation_local_score(node, parents, model.node_type[node], model.node_type)
 
             title += "\nValidation Score: {:0.3f}".format(val_score)
 
-        A = nx.nx_agraph.to_agraph(model_copy)
-        A.graph_attr.update(label=title, labelloc="t", fontsize='25')
-        A.write('{}/{:06d}.dot'.format(self.folder, iter_no))
-        A.clear()
+        a = nx.nx_agraph.to_agraph(model_copy)
+        a.graph_attr.update(label=title, labelloc="t", fontsize='25')
+        a.write('{}/{:06d}.dot'.format(self.folder, iter_no))
+        a.clear()
 
         subprocess.run(["dot", "-Tpdf", "{}/{:06d}.dot".format(self.folder, iter_no), "-o",
                         "{}/{:06d}.pdf".format(self.folder, iter_no)])
-
-

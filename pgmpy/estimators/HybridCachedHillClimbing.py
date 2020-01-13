@@ -1,21 +1,17 @@
 #!/usr/bin/env python
-
 import numpy as np
-from scipy.optimize import brentq as root
 import networkx as nx
 
 from pgmpy.estimators import StructureEstimator, CVPredictiveLikelihood, ValidationLikelihood
-from pgmpy.base import DAG
 from pgmpy.models import HybridContinuousModel
 from pgmpy.factors.continuous import NodeType
 
-from scipy import stats
-
 import math
+
 
 class HybridCachedHillClimbing(StructureEstimator):
 
-    def __init__(self, data, scoring_method=None, blacklist=[], whitelist=[], **kwargs):
+    def __init__(self, data, scoring_method=None, blacklist=None, whitelist=None, **kwargs):
         """
         CacheDecomposableHillCliming implements a hill climbing algorithm caching the scores of different operators.
         This hill climbing procedure assumes the 'scoring_method' is decomposable, so it only updates the relevant
@@ -31,6 +27,12 @@ class HybridCachedHillClimbing(StructureEstimator):
         :param whitelist: List of blacklisted arcs [(source_node, dest_node), (source_node, dest_node), ...]
         :param kwargs:
         """
+        if blacklist is None:
+            blacklist = []
+
+        if whitelist is None:
+            whitelist = []
+
         if not np.all(data.dtypes == 'float64'):
             raise ValueError("HybridContinuousModel can only be trained from all-continuous data.")
 
@@ -92,10 +94,11 @@ class HybridCachedHillClimbing(StructureEstimator):
 
     def _precompute_score_arcs_node(self, model, scores, node):
         """
-        Precompute the score for the node in the first iteration. This method is slightly different to update_node_score()
-        because it is easier to deal with reversing scores at the start. In particular, when a change is produced in
-        'node', then 'update_node_score' needs to update the score of reversing a possible arc 'other_node' -> 'node' or
-        a possible arc 'node' -> 'other_node'.
+        Precompute the score for the node in the first iteration. This method is slightly different to
+        update_node_score() because it is easier to deal with reversing scores at the start. In particular, when a
+        change is produced in 'node', then 'update_node_score' needs to update the score of reversing a possible arc
+        'other_node' -> 'node' or a possible arc 'node' -> 'other_node'.
+
         :param model: Starting graph to compute the score.
         :param scores: Matrix n x n of scores to be filled up with the scores of operations in node 'node'.
         :param node: Node for which operation scores on it will be computed.
@@ -114,10 +117,12 @@ class HybridCachedHillClimbing(StructureEstimator):
                 parents_new = parents.copy()
                 parents_new.remove(other_node)
                 # Delta score of removing arc 'other_node' -> 'node'
-                scores[other_index, node_index] = local_score(node, parents_new, node_type, model.node_type) - \
-                                                    self.node_scores[node_index]
+                scores[other_index, node_index] = \
+                    local_score(node, parents_new, node_type, model.node_type) - \
+                    self.node_scores[node_index]
 
-                print("Caching removing arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
+                print("Caching removing arc " + other_node + " -> " + node +
+                      " (" + str(scores[other_index, node_index]) + ")")
             # Delta score of reversing arc 'node' -> 'other_node'
             elif model.has_edge(node, other_node):
                 other_node_parents = set(model.get_parents(other_node))
@@ -130,18 +135,22 @@ class HybridCachedHillClimbing(StructureEstimator):
 
                 other_node_type = model.node_type[other_node]
 
-                scores[other_index, node_index] = local_score(other_node, other_node_parents_new, other_node_type, model.node_type) +\
-                                                local_score(node, parents_new, node_type, model.node_type) -\
-                                                self.node_scores[other_index] -\
-                                                self.node_scores[node_index]
-                print("Caching reversing arc " + node + " -> " + other_node + " (" + str(scores[other_index, node_index]) + ")")
+                scores[other_index, node_index] = \
+                    local_score(other_node, other_node_parents_new, other_node_type, model.node_type) + \
+                    local_score(node, parents_new, node_type, model.node_type) - \
+                    self.node_scores[other_index] - \
+                    self.node_scores[node_index]
+                print("Caching reversing arc " + node + " -> " + other_node +
+                      " (" + str(scores[other_index, node_index]) + ")")
             else:
                 # Delta score of adding arc 'other_node' -> 'node'
                 parents_new = parents.copy()
                 parents_new.add(other_node)
-                scores[other_index, node_index] = local_score(node, parents_new, node_type, model.node_type) -\
-                                                  self.node_scores[node_index]
-                print("Caching adding arc " + other_node + " -> " + node + " (" + str(scores[other_index, node_index]) + ")")
+                scores[other_index, node_index] = \
+                    local_score(node, parents_new, node_type, model.node_type) - \
+                    self.node_scores[node_index]
+                print("Caching adding arc " + other_node + " -> " + node +
+                      " (" + str(scores[other_index, node_index]) + ")")
 
     def _precompute_score_types_node(self, model, scores, node):
         node_index = self.nodes_indices[node]
@@ -157,8 +166,7 @@ class HybridCachedHillClimbing(StructureEstimator):
         else:
             raise ValueError("Wrong node type for HybridContinuousModel.")
 
-        scores[node_index] = local_score(node, parents, other_node_type, model.node_type) - \
-                                 self.node_scores[node_index]
+        scores[node_index] = local_score(node, parents, other_node_type, model.node_type) - self.node_scores[node_index]
 
         children = model.get_children(node)
         for child in children:
@@ -168,8 +176,9 @@ class HybridCachedHillClimbing(StructureEstimator):
                 new_parent_type[node] = other_node_type
                 child_index = self.nodes_indices[child]
 
-                scores[node_index] += local_score(child, child_parents, model.node_type[child], new_parent_type) - \
-                                           self.node_scores[child_index]
+                scores[node_index] += \
+                    local_score(child, child_parents, model.node_type[child], new_parent_type) - \
+                    self.node_scores[child_index]
 
         print(" (" + str(scores[node_index]) + ")")
 
@@ -187,7 +196,7 @@ class HybridCachedHillClimbing(StructureEstimator):
             - source[j,i] is not computed.
 
         :param model: Graph of the current model.
-        :param scores: Matrix n x n of scores to be updated.
+        :param type_scores: Vector of scores to be updated. It just updates the relevant scores given the operation.
         :param node: Node where there was a change in the graph that needs updating scores.
         :return:
         """
@@ -205,8 +214,9 @@ class HybridCachedHillClimbing(StructureEstimator):
         else:
             raise ValueError("Wrong node type detected on node {}.", node)
 
-        type_scores[node_index] = local_score(node, parents, other_node_type, model.node_type) - \
-                                  self.node_scores[node_index]
+        type_scores[node_index] = \
+            local_score(node, parents, other_node_type, model.node_type) - \
+            self.node_scores[node_index]
 
         children = model.get_children(node)
 
@@ -216,9 +226,9 @@ class HybridCachedHillClimbing(StructureEstimator):
                 new_parent_type = model.node_type.copy()
                 new_parent_type[node] = other_node_type
                 child_index = self.nodes_indices[child]
-                type_scores[node_index] += local_score(child, child_parents, model.node_type[child], new_parent_type) - \
-                                           self.node_scores[child_index]
-
+                type_scores[node_index] += \
+                    local_score(child, child_parents, model.node_type[child], new_parent_type) - \
+                    self.node_scores[child_index]
 
     def score_add_arc(self, model, source, dest):
         local_score = self.scoring_method.local_score
@@ -229,8 +239,9 @@ class HybridCachedHillClimbing(StructureEstimator):
         parents_new = parents.copy()
         parents_new.add(source)
 
-        return local_score(dest, parents_new, model.node_type[dest], model.node_type) -\
-               self.node_scores[dest_index]
+        return \
+            local_score(dest, parents_new, model.node_type[dest], model.node_type) - \
+            self.node_scores[dest_index]
 
     def score_remove_arc(self, model, source, dest):
         local_score = self.scoring_method.local_score
@@ -241,13 +252,14 @@ class HybridCachedHillClimbing(StructureEstimator):
         parents_new = parents.copy()
         parents_new.remove(source)
 
-        return local_score(dest, parents_new, model.node_type[dest], model.node_type) -\
-               self.node_scores[dest_index]
+        return \
+            local_score(dest, parents_new, model.node_type[dest], model.node_type) - \
+            self.node_scores[dest_index]
 
     def score_flip_arc(self, model, source, dest):
         return self.score_remove_arc(model, source, dest) + self.score_add_arc(model, dest, source)
 
-    def set_update_arcs_to_node(self, model, dest):
+    def arcset_to_node(self, model, dest):
         dest_index = self.nodes_indices[dest]
 
         to_update = np.where(self.constraints_matrix[:, dest_index])[0]
@@ -270,7 +282,7 @@ class HybridCachedHillClimbing(StructureEstimator):
 
         return update_set
 
-    def set_update_arcs_from_ckde(self, model, source):
+    def arcset_from_ckde(self, model, source):
         source_index = self.nodes_indices[source]
 
         to_update = np.where(self.constraints_matrix[source_index, :])[0]
@@ -315,13 +327,13 @@ class HybridCachedHillClimbing(StructureEstimator):
         for n in node_set:
             self.update_node_score_types(model, type_scores, n)
 
-
     def apply_operator(self, op, model, scores, type_scores):
         """
         Applies the operator 'op' to the graph. This implies updating the graph and the cached scores.
         :param op: Operation to apply (add, remove or reverse arcs).
         :param model: Graph to update.
         :param scores: Matrix n x n of scores to update. It just updates the relevant scores given the operation.
+        :param type_scores: Vector of scores to be updated. It just updates the relevant scores given the operation.
         :return:
         """
         operation, source, dest, _ = op
@@ -334,7 +346,7 @@ class HybridCachedHillClimbing(StructureEstimator):
             model.add_edge(source, dest)
 
             to_update_nodes.add(dest)
-            to_update_arcs.update(self.set_update_arcs_to_node(model, dest))
+            to_update_arcs.update(self.arcset_to_node(model, dest))
             to_update_types.add(dest)
 
             if model.node_type[dest] == NodeType.CKDE:
@@ -345,7 +357,7 @@ class HybridCachedHillClimbing(StructureEstimator):
             model.remove_edge(source, dest)
 
             to_update_nodes.add(dest)
-            to_update_arcs.update(self.set_update_arcs_to_node(model, dest))
+            to_update_arcs.update(self.arcset_to_node(model, dest))
             # Update the score of adding the score in the opposite direction (dest -> source).
             to_update_arcs.add((dest, source))
 
@@ -361,8 +373,8 @@ class HybridCachedHillClimbing(StructureEstimator):
 
             to_update_nodes.update((source, dest))
 
-            to_update_arcs.update(self.set_update_arcs_to_node(model, dest))
-            to_update_arcs.update(self.set_update_arcs_to_node(model, source))
+            to_update_arcs.update(self.arcset_to_node(model, dest))
+            to_update_arcs.update(self.arcset_to_node(model, source))
 
             to_update_types.update((dest, source))
 
@@ -380,11 +392,11 @@ class HybridCachedHillClimbing(StructureEstimator):
             for child in children:
                 if model.node_type[child] == NodeType.CKDE:
                     to_update_nodes.add(child)
-                    to_update_arcs.update(self.set_update_arcs_to_node(model, child))
+                    to_update_arcs.update(self.arcset_to_node(model, child))
                     to_update_types.update(model.get_parents(child))
 
-            to_update_arcs.update(self.set_update_arcs_to_node(model, source))
-            to_update_arcs.update(self.set_update_arcs_from_ckde(model, source))
+            to_update_arcs.update(self.arcset_to_node(model, source))
+            to_update_arcs.update(self.arcset_from_ckde(model, source))
 
             to_update_types.update(model.get_parents(source) + children)
             to_update_types.add(source)
@@ -393,179 +405,10 @@ class HybridCachedHillClimbing(StructureEstimator):
         self.update_arc_scores(model, scores, to_update_arcs)
         self.update_type_scores(model, type_scores, to_update_types)
 
-    def ttest_onesample_sample_size_power(self, d, alpha, power, starting_N, alternative, maximum_samples):
-        """
-        From pwr.t.test R function.
-        :param d:
-        :param alpha:
-        :param power:
-        :param type:
-        :param alternative:
-        :return:
-        """
-        if alternative == "greater":
-            power_function = self.ttest_power_greater
-        elif alternative == "two.sided":
-            power_function = self.ttest_power_twosided
-            d = math.fabs(d)
-        elif alternative == "less":
-            power_function = self.ttest_power_less
-        else:
-            raise ValueError("alternative should be an string with one of the following values (\"less\", \"two.sided\", \"greater\")")
+    def is_significant_operator(self, model, op, starting_n, epsilon, alpha):
+        pass
 
-
-        lower_power = power_function(starting_N, d, alpha)
-
-        if lower_power >= power:
-            return starting_N, lower_power
-
-        higher_power = power_function(maximum_samples, d, alpha)
-
-        if higher_power < power:
-            # Can't calculate enough samples
-            return maximum_samples, higher_power
-
-        needed_N = math.ceil(root(lambda n: power_function(n, d, alpha) - power, starting_N, maximum_samples))
-
-        return needed_N, power_function(needed_N, d, alpha)
-
-    def ttest_power_greater(self, n, d, alpha):
-        nu = n - 1
-        return 1-stats.nct.cdf(stats.t.ppf(1-alpha, nu), nu, math.sqrt(n)*d)
-
-    def ttest_power_twosided(self, n, d, alpha):
-        nu = n - 1
-        qu = stats.t.ppf(1-alpha, nu)
-
-        return 1-stats.nct.cdf(qu, nu, math.sqrt(n)*d) + (stats.nct.cdf(-qu, nu, math.sqrt(n)*d))
-
-    def ttest_power_less(self, n, d, alpha):
-        nu = n - 1
-        return stats.nct.cdf(stats.t.ppf(alpha, nu), nu, math.sqrt(n)*d)
-
-    def sample_crossvalidation_power_operation(self, model, op, scores, epsilon, d, alpha, starting_N):
-        N = starting_N
-        operation = op[0]
-
-        if operation == "+" or operation == "-" or operation == "flip":
-            dest_type = model.node_type[op[2]]
-            multiple_operation_fun = self.multiple_crossvalidation_operation_arcs
-        elif operation == "type":
-            dest_type = op[2]
-            multiple_operation_fun = self.multiple_crossvalidation_operation_types
-        else:
-            raise ValueError("Wrong operator.")
-
-        if dest_type == NodeType.CKDE:
-            maximum_samples = 100
-        elif dest_type == NodeType.GAUSSIAN:
-            maximum_samples = 3000
-
-        needed_N, power = self.ttest_onesample_sample_size_power(d, alpha, 0.8, N, "two.sided", maximum_samples)
-
-        if needed_N is None:
-            return scores, N, None
-
-        while needed_N > N:
-            needed_scores = multiple_operation_fun(model, op, needed_N - N)
-            scores = np.hstack((scores, needed_scores))
-            N = needed_N
-
-            d = (scores.mean() - epsilon) / scores.std()
-
-            if d <= 0:
-                return scores, N, None
-
-            needed_N, power = self.ttest_onesample_sample_size_power(d, alpha, 0.8, N, "greater", maximum_samples)
-
-            if needed_N is None:
-                return scores, N, None
-
-        return scores, needed_N, power
-
-    def sample_crossvalidation_power_convergence(self, model, scores, total_score, d, alpha, starting_N):
-        N = starting_N
-
-        if any(n == NodeType.CKDE for n in model.node_type.values()):
-            maximum_samples = 100
-        else:
-            maximum_samples = 3000
-
-        needed_N, power = self.ttest_onesample_sample_size_power(d, alpha, 0.8, N, "two.sided", maximum_samples)
-
-        if needed_N is None:
-            return scores, N, None
-
-        max_uint = np.iinfo(np.int32).max
-        while needed_N > N:
-            additional_scores = np.empty((needed_N-N,))
-            print()
-            for i in range(needed_N-N):
-                print("\rMore convergence samples (" + str(needed_N - N) + "): " + str(i+1) + "/" + str(needed_N-N), end='')
-                self.scoring_method.change_seed(np.random.randint(0, max_uint))
-                additional_scores[i] = self._total_score()
-            print()
-
-            scores = np.hstack((scores, additional_scores))
-            N = needed_N
-
-            d = (scores.mean() - total_score) / scores.std()
-
-            if d <= 0:
-                return scores, N, None
-
-            needed_N, power = self.ttest_onesample_sample_size_power(d, alpha, 0.8, N, "two.sided", maximum_samples)
-
-            if needed_N is None:
-                return scores, N, None
-
-        return scores, needed_N, power
-
-    def is_significant_operator(self, model, op, starting_N, epsilon, alpha):
-        print("Checking significance for operator: " + str(op))
-        operation = op[0]
-        N = starting_N
-
-        if operation == "+" or operation == "-" or operation == "flip":
-            scores = self.multiple_crossvalidation_operation_arcs(model, op, N)
-        elif operation == "type":
-           scores = self.multiple_crossvalidation_operation_types(model, op, N)
-        else:
-            raise ValueError("Wrong operator")
-
-        d = (scores.mean() - epsilon) / scores.std()
-
-        print("Scores mean: " + str(scores.mean()))
-        print("Scores std: " + str(scores.std()))
-
-        t_statistic = (scores.mean() - epsilon) * math.sqrt(N) / scores.std()
-
-        print("Cross validated_scores: " + str(scores))
-        print("p-value: ", 1-stats.t.cdf(t_statistic, N-1))
-
-        power = self.ttest_power_greater(N, d, alpha)
-        print("power: ", power)
-
-        if stats.t.cdf(t_statistic, N-1) > 1-alpha:
-            if d > 0:
-                scores, N_new, power = self.sample_crossvalidation_power_operation(model, op, scores, epsilon, d, alpha, starting_N)
-
-                if N_new > N:
-                    t_statistic = (scores.mean() - epsilon) * math.sqrt(N_new) / scores.std()
-                    print("p-value: ", 1-stats.t.cdf(t_statistic, N_new-1))
-                    print("power: ", power)
-
-                    if stats.t.cdf(t_statistic, N_new-1) > 1-alpha:
-                        return True
-                    else:
-                        return False
-
-            return True
-        else:
-            return False
-
-    def multiple_crossvalidation_operation_arcs(self, model, op, N):
-
+    def multiple_crossvalidation_operation_arcs(self, model, op, n):
         operation, source, dest, _ = op
 
         old_parents = model.get_parents(dest)
@@ -579,32 +422,35 @@ class HybridCachedHillClimbing(StructureEstimator):
         max_uint = np.iinfo(np.int32).max
         old_seed = self.scoring_method.seed
 
-        scores = np.empty((N,))
-        seeds = np.empty((N,), dtype=np.int32)
+        scores = np.empty((n,))
+        seeds = np.empty((n,), dtype=np.int32)
 
+        local_score = self.scoring_method.local_score
         print()
-        for i in range(N):
-            print("\rConvergence samples arcs: {}/{}".format(i+1, N), end='')
+        for i in range(n):
+            print("\rConvergence samples arcs: {}/{}".format(i + 1, n), end='')
             seeds[i] = np.random.randint(0, max_uint)
             self.scoring_method.change_seed(seeds[i])
-            scores[i] = self.scoring_method.local_score(dest, new_parents, model.node_type[dest], model.node_type) - \
-                        self.scoring_method.local_score(dest, old_parents, model.node_type[dest], model.node_type)
+            scores[i] = \
+                local_score(dest, new_parents, model.node_type[dest], model.node_type) - \
+                local_score(dest, old_parents, model.node_type[dest], model.node_type)
 
         if operation == "flip":
             source_parents = model.get_parents(source)
             source_parents_new = source_parents.copy()
             source_parents_new.append(dest)
-            for i in range(N):
-                print("\rConvergence samples arcs: {}/{} (flip)".format(i+1, N), end='')
+            for i in range(n):
+                print("\rConvergence samples arcs: {}/{} (flip)".format(i + 1, n), end='')
                 self.scoring_method.change_seed(seeds[i])
-                scores[i] += self.scoring_method.local_score(source, source_parents_new, model.node_type[source], model.node_type) - \
-                             self.scoring_method.local_score(source, source_parents, model.node_type[source], model.node_type)
+                scores[i] += \
+                    local_score(source, source_parents_new, model.node_type[source], model.node_type) - \
+                    local_score(source, source_parents, model.node_type[source], model.node_type)
 
         print()
         self.scoring_method.change_seed(old_seed)
         return scores
 
-    def multiple_crossvalidation_operation_types(self, model, op, N):
+    def multiple_crossvalidation_operation_types(self, model, op, n):
 
         _, node, new_type, _ = op
         parents = model.get_parents(node)
@@ -615,23 +461,26 @@ class HybridCachedHillClimbing(StructureEstimator):
         max_uint = np.iinfo(np.int32).max
         old_seed = self.scoring_method.seed
 
-        scores = np.empty((N,))
-        seeds = np.empty((N,), dtype=np.int32)
+        scores = np.empty((n,))
+        seeds = np.empty((n,), dtype=np.int32)
 
-        for i in range(N):
-            print("\r {}/{}".format(i+1, N), end='')
+        local_score = self.scoring_method.local_score
+        for i in range(n):
+            print("\r {}/{}".format(i + 1, n), end='')
             seeds[i] = np.random.randint(0, max_uint)
             self.scoring_method.change_seed(seeds[i])
-            scores[i] = self.scoring_method.local_score(node, parents, new_type, model.node_type) - \
-                        self.scoring_method.local_score(node, parents, current_type, model.node_type)
+            scores[i] = \
+                local_score(node, parents, new_type, model.node_type) - \
+                local_score(node, parents, current_type, model.node_type)
 
             for child in children:
                 if model.node_type[child] == NodeType.CKDE:
                     child_parents = model.get_parents(child)
                     new_parent_type = model.node_type.copy()
                     new_parent_type[node] = new_type
-                    scores[i] += self.scoring_method.local_score(child, child_parents, model.node_type[child], new_parent_type) - \
-                                 self.scoring_method.local_score(child, child_parents, model.node_type[child], model.node_type)
+                    scores[i] += \
+                        local_score(child, child_parents, model.node_type[child], new_parent_type) - \
+                        local_score(child, child_parents, model.node_type[child], model.node_type)
 
         print()
         self.scoring_method.change_seed(old_seed)
@@ -689,6 +538,7 @@ class HybridCachedHillClimbing(StructureEstimator):
     def validation_delta(self, model, op):
         op, source, dest, _ = op
 
+        validation_local_score = self.scoring_method.validation_local_score
         if op == "+":
             node_type = model.node_type[dest]
 
@@ -696,9 +546,9 @@ class HybridCachedHillClimbing(StructureEstimator):
             parents_new = parents.copy()
             parents_new.add(source)
 
-            return self.scoring_method.validation_local_score(dest, parents_new, node_type, model.node_type) - \
-                   self.scoring_method.validation_local_score(dest, parents, node_type, model.node_type)
-
+            return \
+                validation_local_score(dest, parents_new, node_type, model.node_type) - \
+                validation_local_score(dest, parents, node_type, model.node_type)
         elif op == "-":
             node_type = model.node_type[dest]
 
@@ -706,8 +556,9 @@ class HybridCachedHillClimbing(StructureEstimator):
             parents_new = parents.copy()
             parents_new.remove(source)
 
-            return self.scoring_method.validation_local_score(dest, parents_new, node_type, model.node_type) - \
-                   self.scoring_method.validation_local_score(dest, parents, node_type, model.node_type)
+            return \
+                validation_local_score(dest, parents_new, node_type, model.node_type) - \
+                validation_local_score(dest, parents, node_type, model.node_type)
         elif op == "flip":
             node_type = model.node_type[dest]
             other_node_type = model.node_type[source]
@@ -720,11 +571,11 @@ class HybridCachedHillClimbing(StructureEstimator):
             other_node_parents_new = other_node_parents.copy()
             other_node_parents_new.add(dest)
 
-            return self.scoring_method.validation_local_score(dest, parents_new, node_type, model.node_type) + \
-                   self.scoring_method.validation_local_score(source, other_node_parents_new, other_node_type, model.node_type) - \
-                   self.scoring_method.validation_local_score(dest, parents, node_type, model.node_type) - \
-                   self.scoring_method.validation_local_score(source, other_node_parents, other_node_type, model.node_type)
-
+            return \
+                validation_local_score(dest, parents_new, node_type, model.node_type) + \
+                validation_local_score(source, other_node_parents_new, other_node_type, model.node_type) - \
+                validation_local_score(dest, parents, node_type, model.node_type) - \
+                validation_local_score(source, other_node_parents, other_node_type, model.node_type)
         elif op == "type":
             node_type = model.node_type[source]
             node_type_new = dest
@@ -735,22 +586,31 @@ class HybridCachedHillClimbing(StructureEstimator):
             parents = model.get_parents(source)
             children = model.get_children(source)
 
-            validation_score = self.scoring_method.validation_local_score(source, parents, node_type_new, new_node_type) - \
-                               self.scoring_method.validation_local_score(source, parents, node_type, model.node_type)
+            validation_score = \
+                validation_local_score(source, parents, node_type_new, new_node_type) - \
+                validation_local_score(source, parents, node_type, model.node_type)
 
             for child in children:
                 if model.node_type[child] == NodeType.CKDE:
                     child_parents = model.get_parents(child)
                     child_type = model.node_type[child]
-                    validation_score += self.scoring_method.validation_local_score(child, child_parents, child_type, new_node_type) - \
-                                        self.scoring_method.validation_local_score(child, child_parents, child_type, model.node_type)
+                    validation_score += \
+                        validation_local_score(child, child_parents, child_type, new_node_type) - \
+                        validation_local_score(child, child_parents, child_type, model.node_type)
 
             return validation_score
         else:
             raise ValueError("Wrong operator.")
 
+    def best_operator_max_indegree(self,
+                                   model,
+                                   scores,
+                                   type_scores,
+                                   max_indegree,
+                                   epsilon,
+                                   significant_threshold,
+                                   alpha):
 
-    def best_operator_max_indegree(self, model, scores, type_scores, max_indegree, epsilon, significant_threshold, alpha):
         best_type = self.best_operator_types(model, type_scores)
         best_arc = self.best_operator_arcs_max_indegree(model, scores, max_indegree)
 
@@ -778,9 +638,9 @@ class HybridCachedHillClimbing(StructureEstimator):
         node = self.nodes[index]
 
         if model.node_type[node] == NodeType.GAUSSIAN:
-            return ("type", node, NodeType.CKDE, type_scores[index])
+            return "type", node, NodeType.CKDE, type_scores[index]
         else:
-            return ("type", node, NodeType.GAUSSIAN, type_scores[index])
+            return "type", node, NodeType.GAUSSIAN, type_scores[index]
 
     def best_operator_types_tabu(self, model, type_scores, tabu):
         sorted_scores = np.argsort(type_scores)[::-1]
@@ -790,13 +650,13 @@ class HybridCachedHillClimbing(StructureEstimator):
             if model.node_type[node] == NodeType.GAUSSIAN:
                 o = ("type", node, NodeType.CKDE)
                 if o not in tabu:
-                    return ("type", node, NodeType.CKDE, type_scores[i])
+                    return "type", node, NodeType.CKDE, type_scores[i]
                 else:
                     continue
             else:
                 o = ("type", node, NodeType.GAUSSIAN)
                 if o not in tabu:
-                    return ("type", node, NodeType.GAUSSIAN, type_scores[i])
+                    return "type", node, NodeType.GAUSSIAN, type_scores[i]
                 else:
                     continue
 
@@ -804,9 +664,9 @@ class HybridCachedHillClimbing(StructureEstimator):
         """
         Finds the best operator to apply to the graph.
         :param model: The current graph model.
-        :param scores: A matrix of n x n where score[i,j] is the score of adding the arc i->j if the arc is not currently
-        in the graph. If the arc i->j is currently in the graph, score[i,j] is the score of removing the, and
-        score[j,i] is the score of reversing the arc.
+        :param scores: A matrix of n x n where score[i,j] is the score of adding the arc i->j if the arc is not
+        currently in the graph. If the arc i->j is currently in the graph, score[i,j] is the score of removing the arc
+        and score[j,i] is the score of reversing the arc.
         :return: The best operator (op, source_node, dest_node, delta_score).
         """
         nnodes = model.number_of_nodes()
@@ -822,15 +682,14 @@ class HybridCachedHillClimbing(StructureEstimator):
             dest_node = self.nodes[dest_index]
 
             if model.has_edge(source_node, dest_node):
-                return ("-", source_node, dest_node, delta_score)
+                return "-", source_node, dest_node, delta_score
             elif model.has_edge(dest_node, source_node):
                 source_new_parents = model.get_parents(source_node)
                 source_new_parents.remove(dest_node)
                 dest_new_children = model.get_children(dest_node)
                 dest_new_children.remove(source_node)
 
-                must_check_for_cycle = False if not source_new_parents or \
-                                                not dest_new_children else True
+                must_check_for_cycle = False if not source_new_parents or not dest_new_children else True
 
                 if must_check_for_cycle:
                     try:
@@ -844,15 +703,15 @@ class HybridCachedHillClimbing(StructureEstimator):
                         model.add_edge(dest_node, source_node)
 
                     if isdag:
-                        return ("flip", dest_node, source_node, delta_score)
+                        return "flip", dest_node, source_node, delta_score
                     else:
                         continue
                 else:
-                    return ("flip", dest_node, source_node, delta_score)
+                    return "flip", dest_node, source_node, delta_score
 
             else:
-                must_check_for_cycle = False if not model.get_parents(source_node) or \
-                                                not model.get_children(dest_node) else True
+                must_check_for_cycle = \
+                    False if not model.get_parents(source_node) or not model.get_children(dest_node) else True
 
                 if must_check_for_cycle:
                     try:
@@ -863,20 +722,21 @@ class HybridCachedHillClimbing(StructureEstimator):
                         isdag = False
 
                     if isdag:
-                        return ("+", source_node, dest_node, delta_score)
+                        return "+", source_node, dest_node, delta_score
                     else:
                         continue
                 else:
-                    return ("+", source_node, dest_node, delta_score)
+                    return "+", source_node, dest_node, delta_score
         return None
 
     def best_operator_arcs_tabu(self, model, scores, tabu):
         """
         Finds the best operator to apply to the graph.
         :param model: The current graph model.
-        :param scores: A matrix of n x n where score[i,j] is the score of adding the arc i->j if the arc is not currently
-        in the graph. If the arc i->j is currently in the graph, score[i,j] is the score of removing the, and
-        score[j,i] is the score of reversing the arc.
+        :param scores: A matrix of n x n where score[i,j] is the score of adding the arc i->j if the arc is not
+        currently in the graph. If the arc i->j is currently in the graph, score[i,j] is the score of removing the arc
+         and score[j,i] is the score of reversing the arc.
+        :param tabu: Set of forbidden operators.
         :return: The best operator (op, source_node, dest_node, delta_score).
         """
         nnodes = model.number_of_nodes()
@@ -893,7 +753,7 @@ class HybridCachedHillClimbing(StructureEstimator):
 
             if model.has_edge(source_node, dest_node):
                 if ("-", source_node, dest_node) not in tabu:
-                    return ("-", source_node, dest_node, delta_score)
+                    return "-", source_node, dest_node, delta_score
                 else:
                     continue
             elif model.has_edge(dest_node, source_node):
@@ -902,8 +762,7 @@ class HybridCachedHillClimbing(StructureEstimator):
                 dest_new_children = model.get_children(dest_node)
                 dest_new_children.remove(source_node)
 
-                must_check_for_cycle = False if not source_new_parents or \
-                                                not dest_new_children else True
+                must_check_for_cycle = False if not source_new_parents or not dest_new_children else True
 
                 if must_check_for_cycle:
                     try:
@@ -918,20 +777,20 @@ class HybridCachedHillClimbing(StructureEstimator):
 
                     if isdag:
                         if ("flip", dest_node, source_node) not in tabu:
-                            return ("flip", dest_node, source_node, delta_score)
+                            return "flip", dest_node, source_node, delta_score
                         else:
                             continue
                     else:
                         continue
                 else:
                     if ("flip", dest_node, source_node) not in tabu:
-                        return ("flip", dest_node, source_node, delta_score)
+                        return "flip", dest_node, source_node, delta_score
                     else:
                         continue
 
             else:
-                must_check_for_cycle = False if not model.get_parents(source_node) or \
-                                                not model.get_children(dest_node) else True
+                must_check_for_cycle = \
+                    False if not model.get_parents(source_node) or not model.get_children(dest_node) else True
 
                 if must_check_for_cycle:
                     try:
@@ -943,27 +802,27 @@ class HybridCachedHillClimbing(StructureEstimator):
 
                     if isdag:
                         if ("+", source_node, dest_node) not in tabu:
-                            return ("+", source_node, dest_node, delta_score)
+                            return "+", source_node, dest_node, delta_score
                         else:
                             continue
                     else:
                         continue
                 else:
                     if ("+", source_node, dest_node) not in tabu:
-                        return ("+", source_node, dest_node, delta_score)
+                        return "+", source_node, dest_node, delta_score
                     else:
                         continue
         return None
-
 
     def best_operator_arcs_max_indegree(self, model, scores, max_indegree):
         """
         Finds the best operator to apply to the graph. This is a version of self.best_operation() with checks for
         maximum indegree for maximum performance when indegree is not relevant.
-        :param graph: The current graph model.
-        :param scores: A matrix of n x n where score[i,j] is the score of adding the arc i->j if the arc is not currently
-        in the graph. If the arc i->j is currently in the graph, score[i,j] is the score of removing the, and
+        :param model: The current graph model.
+        :param scores: A matrix of n x n where score[i,j] is the score of adding the arc i->j if the arc is not
+        currently in the graph. If the arc i->j is currently in the graph, score[i,j] is the score of removing the, and
         score[j,i] is the score of reversing the arc.
+        :param max_indegree: Maximum indegree allowed.
         :return: The best operator (op, source_node, dest_node, delta_score).
         """
         nnodes = model.number_of_nodes()
@@ -979,7 +838,7 @@ class HybridCachedHillClimbing(StructureEstimator):
             dest_node = self.nodes[dest_index]
 
             if model.has_edge(source_node, dest_node):
-                return ("-", source_node, dest_node, delta_score)
+                return "-", source_node, dest_node, delta_score
             elif model.has_edge(dest_node, source_node):
                 if len(model.get_parents(dest_node)) >= max_indegree:
                     continue
@@ -988,8 +847,7 @@ class HybridCachedHillClimbing(StructureEstimator):
                 source_new_parents.remove(dest_node)
                 dest_new_children = model.get_children(dest_node)
                 dest_new_children.remove(source_node)
-                must_check_for_cycle = False if not source_new_parents or \
-                                                not dest_new_children else True
+                must_check_for_cycle = False if not source_new_parents or not dest_new_children else True
 
                 if must_check_for_cycle:
                     try:
@@ -1003,17 +861,17 @@ class HybridCachedHillClimbing(StructureEstimator):
                         model.add_edge(dest_node, source_node)
 
                     if isdag:
-                        return ("flip", dest_node, source_node, delta_score)
+                        return "flip", dest_node, source_node, delta_score
                     else:
                         continue
                 else:
-                    return ("flip", dest_node, source_node, delta_score)
+                    return "flip", dest_node, source_node, delta_score
             else:
                 if len(model.get_parents(dest_node)) >= max_indegree:
                     continue
 
-                must_check_for_cycle = False if not model.get_parents(source_node) or \
-                                                not model.get_children(dest_node) else True
+                must_check_for_cycle = \
+                    False if not model.get_parents(source_node) or not model.get_children(dest_node) else True
 
                 if must_check_for_cycle:
                     try:
@@ -1024,13 +882,12 @@ class HybridCachedHillClimbing(StructureEstimator):
                         isdag = False
 
                     if isdag:
-                        return ("+", source_node, dest_node, delta_score)
+                        return "+", source_node, dest_node, delta_score
                     else:
                         continue
                 else:
-                    return ("+", source_node, dest_node, delta_score)
+                    return "+", source_node, dest_node, delta_score
         return None
-
 
     def _check_blacklist(self, graph):
         """
@@ -1041,7 +898,6 @@ class HybridCachedHillClimbing(StructureEstimator):
         for edge in graph.edges:
             if edge in self.blacklist:
                 raise ValueError("Blacklisted arc included in the starting graph.")
-
 
     def force_whitelist(self, graph):
         """
@@ -1055,83 +911,42 @@ class HybridCachedHillClimbing(StructureEstimator):
         if not nx.is_directed_acyclic_graph(graph):
             raise ValueError("Whitelisted arcs generates cycles in the starting graph.")
 
-
-    def has_converged(self, model, starting_N, alpha):
-        total_score = self.node_scores.sum()
-
-        N = starting_N
-
-        scores = np.empty((N,))
-        max_uint = np.iinfo(np.int32).max
-
-        print()
-        for i in range(N):
-            print("\rChecking convergence (" + str(N) + "): " + str(i+1) + "/" + str(N), end='')
-            self.scoring_method.change_seed(np.random.randint(0, max_uint))
-            scores[i] = self._total_score()
-        print()
-
-        d = (scores.mean() - total_score) / scores.std()
-
-        scores, N, power = self.sample_crossvalidation_power_convergence(model, scores, total_score, d, alpha, starting_N)
-
-        t_statistic = (scores.mean() - total_score) * math.sqrt(N) / scores.std()
-        cdf_t = stats.t.cdf(t_statistic, N-1)
-
-        if cdf_t >= 0.5:
-            p_value = (1-cdf_t)*2
-        else:
-            p_value = cdf_t*2
-
-        print("Other scores: " + str(scores))
-        print()
-        print("Convergence analysis:")
-        print("--------------------------")
-        print("Model score: " + str(total_score))
-        print("Scores mean: " + str(scores.mean()))
-        print("Scores std: " + str(scores.std()))
-        print("p-value: " + str(p_value))
-        print("power: " + str(power))
-        if cdf_t >= alpha/2 and cdf_t <= (1-alpha/2):
-            return True
-        else:
-            print("Not converged")
-            return False
+    def has_converged(self, model, starting_n, alpha):
+        pass
 
     # FIXME: Implement tabu.
     def estimate_cv(
         self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, max_iter=1e6,
-            significant_threshold=5, significant_alpha=0.05, callbacks=[]
+            significant_threshold=5, significant_alpha=0.05, callbacks=None
     ):
         """
         This method runs the hill climbing algorithm.
 
         :param start: Starting graph structure. If None, it starts with an empty graph.
         :param tabu_length:
-        :param max_indegree: Maximum indegree allowed for each node. If None, no maximum_indegree restriction is applied.
+        :param max_indegree: Maximum indegree allowed for each node. If None, no maximum_indegree restriction is
+        applied.
         :param epsilon: Minimum delta score necessary to continue iterating.
         :param max_iter: Maximum number of iterations to apply.
+        :param significant_threshold: Threshold of delta score to check the significance of the operator.
+        :param significant_alpha: Alpha for the significance tests
+        :param callbacks. A list of callbacks to be executed at each iteration of the algorithm.
         :return: Best graph structure found by the algorithm.
         """
         if start is None:
             start = HybridContinuousModel()
             start.add_nodes_from(self.nodes)
 
+        if callbacks is None:
+            callbacks = []
+
         if max_indegree is None:
-            best_operator_fun = lambda graph, scores, type_scores: self.best_operator(graph,
-                                                                                      scores,
-                                                                                      type_scores,
-                                                                                      epsilon,
-                                                                                      significant_threshold,
-                                                                                      significant_alpha)
+            best_operator_fun = lambda g, s, t: self.best_operator(g, s, t, epsilon,
+                                                                   significant_threshold, significant_alpha)
         else:
-            best_operator_fun = lambda graph, scores, type_scores: self.best_operator_max_indegree(graph,
-                                                                                                   scores,
-                                                                                                   type_scores,
-                                                                                                   max_indegree,
-                                                                                                   epsilon,
-                                                                                                   significant_threshold,
-                                                                                                   significant_alpha)
+            best_operator_fun = lambda g, s, t: self.best_operator_max_indegree(g, s, t, max_indegree, epsilon,
+                                                                                significant_threshold,
+                                                                                significant_alpha)
 
         self._check_blacklist(start)
         self.force_whitelist(start)
@@ -1201,7 +1016,6 @@ class HybridCachedHillClimbing(StructureEstimator):
         for callback in callbacks:
             callback.call(current_model, None, self.scoring_method, iter_no)
 
-
         final_score = self._total_score_print(current_model)
         print("Final score: " + str(final_score))
         return current_model
@@ -1209,16 +1023,19 @@ class HybridCachedHillClimbing(StructureEstimator):
     # FIXME: Implement tabu.
     def estimate_validation(
             self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, max_iter=1e6, patience=0,
-            callbacks=[]
+            callbacks=None
     ):
         """
         This method runs the hill climbing algorithm.
 
         :param start: Starting graph structure. If None, it starts with an empty graph.
         :param tabu_length:
-        :param max_indegree: Maximum indegree allowed for each node. If None, no maximum_indegree restriction is applied.
+        :param max_indegree: Maximum indegree allowed for each node. If None, no maximum_indegree restriction is
+        applied.
         :param epsilon: Minimum delta score necessary to continue iterating.
         :param max_iter: Maximum number of iterations to apply.
+        :param patience: Maximum number of iterations without improving the score.
+        :param callbacks. A list of callbacks to be executed at each iteration of the algorithm.
         :return: Best graph structure found by the algorithm.
         """
         if not isinstance(self.scoring_method, ValidationLikelihood):
@@ -1228,15 +1045,13 @@ class HybridCachedHillClimbing(StructureEstimator):
             start = HybridContinuousModel()
             start.add_nodes_from(self.nodes)
 
+        if callbacks is None:
+            callbacks = []
+
         tabu_last = set()
 
         if max_indegree is None:
-            best_operator_fun = lambda graph, scores, type_scores: self.best_operator_validation(graph,
-                                                                                      scores,
-                                                                                      type_scores,
-                                                                                      epsilon,
-                                                                                      tabu_last
-                                                                                    )
+            best_operator_fun = lambda g, s, t: self.best_operator_validation(g, s, t, epsilon, tabu_last)
         else:
             raise NotImplementedError("Implement max indegree execution.")
 
@@ -1267,7 +1082,8 @@ class HybridCachedHillClimbing(StructureEstimator):
         best_model_index = 0
 
         print("Starting score: " + str(current_score) + " (" + str(current_score / n_train_instances) + " / instance)")
-        print("Validation score: " + str(best_validation_score) + " (" + str(best_validation_score / n_validation_instances) + " / instance)")
+        print("Validation score: " + str(best_validation_score) +
+              " (" + str(best_validation_score / n_validation_instances) + " / instance)")
 
         models = [current_model.copy()]
         scores_history = [current_score]
@@ -1325,6 +1141,8 @@ class HybridCachedHillClimbing(StructureEstimator):
                         other_type = NodeType.GAUSSIAN
                     elif op[2] == NodeType.GAUSSIAN:
                         other_type = NodeType.CKDE
+                    else:
+                        raise ValueError("Operator with wrong node type.")
 
                     tabu_last.add(("type", op[1], other_type))
             else:
@@ -1340,9 +1158,10 @@ class HybridCachedHillClimbing(StructureEstimator):
             for callback in callbacks:
                 callback.call(current_model, op, self.scoring_method, iter_no)
 
-            print("Current score: " + str(new_score) + " (" +str(new_score / n_train_instances) + " / instance)")
+            print("Current score: " + str(new_score) + " (" + str(new_score / n_train_instances) + " / instance)")
             val_score = self._total_validation_score(current_model)
-            print("Current validation score: " + str(val_score) + " (" +str(val_score / n_validation_instances) + " / instance)")
+            print("Current validation score: " + str(val_score) +
+                  " (" + str(val_score / n_validation_instances) + " / instance)")
             current_score = new_score
 
         for callback in callbacks:
@@ -1351,11 +1170,12 @@ class HybridCachedHillClimbing(StructureEstimator):
         final_score = self._total_score()
         print("Final score: " + str(final_score) + " (" + str(final_score / n_train_instances) + " / instance)")
         val_score = self._total_validation_score(current_model)
-        print("Final validation score: " + str(val_score) + " (" + str(val_score / n_validation_instances) + " / instance)")
+        print("Final validation score: " + str(val_score) +
+              " (" + str(val_score / n_validation_instances) + " / instance)")
         return current_model
 
     def estimate(self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, max_iter=1e6, patience=0,
-                         significant_threshold=5, significant_alpha=0.05, callbacks=[]):
+                 significant_threshold=5, significant_alpha=0.05, callbacks=None):
 
         if isinstance(self.scoring_method, ValidationLikelihood):
             return self.estimate_validation(start=start, tabu_length=tabu_length, max_indegree=max_indegree,
@@ -1368,9 +1188,9 @@ class HybridCachedHillClimbing(StructureEstimator):
 
     def _total_score(self):
         """
-        Computes the total score in the network. As the score method is decomposable. The total score is the sum of
-        the local scores.
-        :param model: Graph to be evaluated.
+        Computes the total score in the current network. As the score method is decomposable. The total score is the
+        sum of the local scores.
+
         :return: Total score of the network.
         """
         return self.node_scores.sum()

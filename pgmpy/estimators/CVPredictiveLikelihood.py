@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 
-from math import log
-
 import numpy as np
-import scipy
 from pgmpy.estimators import StructureScore
 
 from sklearn.model_selection import KFold
@@ -11,7 +8,9 @@ from sklearn.model_selection import KFold
 from pgmpy.estimators import MaximumLikelihoodEstimator
 from pgmpy.factors.continuous import NodeType
 
+
 class CVPredictiveLikelihood(StructureScore):
+
     def __init__(self, data, k=10, seed=0, **kwargs):
         self.seed = seed
         self.k = k
@@ -35,7 +34,8 @@ class CVPredictiveLikelihood(StructureScore):
                     return np.nan
             elif variable_type == NodeType.CKDE:
                 try:
-                    cpd = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, parents, parent_types, train_data)
+                    cpd = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, parents, parent_types,
+                                                                                train_data)
                 except np.linalg.LinAlgError:
                     return np.nan
             else:
@@ -46,4 +46,3 @@ class CVPredictiveLikelihood(StructureScore):
             score += cpd.logpdf_dataset(test_data).sum()
 
         return score
-
