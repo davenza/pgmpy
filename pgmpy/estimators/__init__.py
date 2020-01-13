@@ -6,6 +6,7 @@ from pgmpy.estimators.K2Score import K2Score
 from pgmpy.estimators.BdeuScore import BdeuScore
 from pgmpy.estimators.BicScore import BicScore
 from pgmpy.estimators.GaussianBicScore import GaussianBicScore
+from pgmpy.estimators.GaussianValidationLikelihood import GaussianValidationLikelihood
 from pgmpy.estimators.BGeScore import BGeScore
 from pgmpy.estimators.CVPredictiveLikelihood import CVPredictiveLikelihood
 from pgmpy.estimators.ValidationLikelihood import ValidationLikelihood
@@ -32,6 +33,7 @@ __all__ = [
     "BdeuScore",
     "BicScore",
     "GaussianBicScore",
+    "GaussianValidationLikelihood",
     "BGeScore",
     "CVPredictiveLikelihood",
     "ValidationLikelihood",

@@ -21,6 +21,8 @@ from pgmpy.extern import six
 from pgmpy.extern.six.moves import range, reduce
 from pgmpy.models.MarkovModel import MarkovModel
 
+import pickle
+
 
 class BayesianModel(DAG):
     """
@@ -781,3 +783,17 @@ class BayesianModel(DAG):
         blanket_nodes = set(blanket_nodes)
         blanket_nodes.remove(node)
         return list(blanket_nodes)
+
+    def save_model(self, filename, protocol=pickle.HIGHEST_PROTOCOL):
+        if filename[-4:] != '.pkl':
+            filename += '.pkl'
+        with open(filename, 'wb') as pickle_file:
+            pickle.dump(self, pickle_file, protocol)
+
+    @classmethod
+    def load_model(cls, filename):
+
+        with open(filename, 'rb') as pickle_file:
+            o = pickle.load(pickle_file)
+
+        return o

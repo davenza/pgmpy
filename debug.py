@@ -3,9 +3,10 @@ import numpy as np
 np.random.seed(0)
 import pandas as pd
 
-from pgmpy.estimators import MaximumLikelihoodEstimator, CachedHillClimbing, HybridCachedHillClimbing, CVPredictiveLikelihood, ValidationLikelihood
+from pgmpy.estimators import MaximumLikelihoodEstimator, CachedHillClimbing, HybridCachedHillClimbing, CVPredictiveLikelihood, ValidationLikelihood, GaussianValidationLikelihood
+from pgmpy.estimators.callbacks import DrawModel, SaveModel
 from pgmpy.factors.continuous import NodeType, CKDE_CPD
-from pgmpy.models import HybridContinuousModel
+from pgmpy.models import HybridContinuousModel, BayesianModel
 from pgmpy.estimators import GaussianBicScore, MaximumLikelihoodEstimator
 
 from time import time
@@ -208,12 +209,19 @@ if __name__ == '__main__':
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.CKDE})
 
     # start = HybridContinuousModel.load_model('iterations/000080.pkl')
-    # pl = ValidationLikelihood(mixture_data, k=2, seed=0)
-    # hc = HybridCachedHillClimbing(mixture_data, scoring_method=pl)
-    # bn = hc.estimate_validation()
+    # pl = ValidationLikelihood(ecoli_data, k=2, seed=0)
+    pl = CVPredictiveLikelihood(ecoli_data, k=2, seed=0)
+    hc = HybridCachedHillClimbing(ecoli_data, scoring_method=pl)
 
-    ghc = CachedHillClimbing(mixture_data)
-    gbn = ghc.estimate()
+    cb_draw = DrawModel('iterations')
+    cb_save = SaveModel('iterations')
 
-    # bnmodel = HybridContinuousModel.load_model('iterations/000080.pkl')
+    bn = hc.estimate(callbacks=[cb_draw, cb_save])
+
+    # pl = GaussianValidationLikelihood(ecoli_data, k=2, seed=0)
+    # ghc = CachedHillClimbing(ecoli_data, scoring_method=pl)
+    # gbn = ghc.estimate_validation()
+
+    # bnmodel = HybridContinuousModel.load_model('iterations/000088.pkl')
+    # bnmodel = BayesianModel.load_model('iterations/000087.pkl')
     # to_bnlearn_str(bnmodel)
