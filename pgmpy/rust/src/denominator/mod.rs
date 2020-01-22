@@ -35,6 +35,7 @@ pub unsafe extern "C" fn gaussian_regression_init(
     variance: c_double,
     error: *mut Error,
 ) -> *mut GaussianRegression {
+    *error = Error::NotFinished;
     let pro_que = Box::from_raw(pro_que);
 
     let beta_slice = slice::from_raw_parts(beta, (nparents + 1) as usize);
@@ -57,6 +58,7 @@ pub unsafe extern "C" fn gaussian_regression_init(
         variance: variance,
     });
 
+//    println!("\t[RUST] Gaussian_regression_init {:p}", gr);
     let ptr_gr = Box::into_raw(gr);
 
     Box::into_raw(pro_que);
@@ -66,6 +68,7 @@ pub unsafe extern "C" fn gaussian_regression_init(
 
 #[no_mangle]
 pub unsafe extern "C" fn gaussian_regression_free(gr: *mut GaussianRegression) {
+//    println!("\t[RUST] Gaussian_kde_free {:p}", gr);
     if gr.is_null() {
         return;
     }
@@ -95,7 +98,7 @@ pub unsafe extern "C" fn ckde_init(
     lognorm_factor: f64,
     error: *mut Error,
 ) -> *mut CKDE {
-
+    *error = Error::NotFinished;
     let d = (*kde).d;
     let pro_que = Box::from_raw(pro_que);
 
@@ -145,11 +148,14 @@ pub unsafe extern "C" fn ckde_init(
 
     Box::into_raw(pro_que);
     let ptr_ckde = Box::into_raw(ckde);
+//    println!("\t[RUST] ckde_init {:p}", ptr_ckde);
+    *error = Error::NoError;
     ptr_ckde
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn ckde_free(ckde: *mut CKDE) {
+//    println!("\t[RUST] ckde_free {:p}", ckde);
     if ckde.is_null() {
         return;
     }

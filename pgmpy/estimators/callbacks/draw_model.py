@@ -23,7 +23,13 @@ class DrawModel(Callback):
         if isinstance(scoring_method, (CVPredictiveLikelihood, ValidationLikelihood)):
             sc = lambda n, p: scoring_method.local_score(n, p, model.node_type[n], model.node_type)
         else:
-            sc = scoring_method
+            sc = scoring_method.local_score
+
+        val_sc = None
+        if isinstance(scoring_method, ValidationLikelihood):
+            val_sc = lambda n, p: scoring_method.validation_local_score(n, p, model.node_type[n], model.node_type)
+        elif isinstance(scoring_method, GaussianValidationLikelihood):
+            val_sc = scoring_method.validation_local_score
 
         for node in model.nodes:
             parents = model.get_parents(node)
@@ -45,10 +51,10 @@ class DrawModel(Callback):
                 model_copy.add_edge(source, dest)
                 model_copy.edges[source, dest]['color'] = 'firebrick1'
                 model_copy.edges[source, dest]['label'] = "{:0.3f}".format(score)
-            elif operation == 'flip':
+            elif op == 'flip':
                 model_copy.edges[dest, source]['color'] = 'dodgerblue'
                 model_copy.edges[dest, source]['label'] = "{:0.3f}".format(score)
-            elif operation == 'type':
+            elif op == 'type':
                 model_copy.nodes[source]['style'] = 'filled'
                 model_copy.nodes[source]['label'] = "{}\n{:0.3f}".format(source, score)
 
@@ -62,8 +68,7 @@ class DrawModel(Callback):
             val_score = 0
             for node in model.nodes:
                 parents = model.get_parents(node)
-                val_score += \
-                    scoring_method.validation_local_score(node, parents, model.node_type[node], model.node_type)
+                val_score += val_sc(node, parents)
 
             title += "\nValidation Score: {:0.3f}".format(val_score)
 

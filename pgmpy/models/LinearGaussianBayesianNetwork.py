@@ -10,6 +10,9 @@ from pgmpy.models import BayesianModel
 from pgmpy.factors.continuous import LinearGaussianCPD
 from pgmpy.factors.distributions import GaussianDistribution
 
+import pickle
+
+
 class LinearGaussianBayesianNetwork(BayesianModel):
     """
     A Linear Gaussain Bayesian Network is a Bayesian Network, all
@@ -27,6 +30,17 @@ class LinearGaussianBayesianNetwork(BayesianModel):
         if ebunch:
             self.add_edges_from(ebunch)
         self.cpds = []
+
+    @classmethod
+    def load_model(cls, filename):
+
+        with open(filename, 'rb') as pickle_file:
+            o = pickle.load(pickle_file)
+
+        if type(o) is BayesianModel:
+            o = LinearGaussianBayesianNetwork(o.edges)
+
+        return o
 
     def add_cpds(self, *cpds):
         """
@@ -310,3 +324,12 @@ class LinearGaussianBayesianNetwork(BayesianModel):
         raise NotImplementedError(
             "is_imap method has not been implemented for LinearGaussianBayesianNetwork."
         )
+
+    def logpdf_dataset(self, data):
+        logpdf = np.zeros((data.shape[0],))
+
+        for n in self.nodes:
+            cpd = self.get_cpds(n)
+            logpdf += cpd.logpdf_dataset(data)
+
+        return logpdf

@@ -18,11 +18,12 @@ pub unsafe extern "C" fn logdenominator_dataset_gaussian(
     result: *mut c_double,
     error: *mut Error,
 ) {
+//    println!("\t[RUST] logdenominator_gaussian {:p}", ckde);
+    *error = Error::NotFinished;
     let mut ckde = Box::from_raw(ckde);
     let mut pro_que = Box::from_raw(pro_que);
     let m = *(*x).shape;
 
-    *error = Error::NoError;
     if (*ckde.kde).n >= m {
         logdenominator_iterate_test_gaussian(&mut ckde, &mut pro_que, x, result, error);
     } else {
@@ -190,6 +191,7 @@ unsafe fn logdenominator_iterate_test_gaussian(
         .expect("Error reading result data.");
 
     Box::into_raw(kde);
+    *error = Error::NoError;
 }
 
 unsafe fn logdenominator_iterate_train_gaussian(
@@ -350,6 +352,7 @@ unsafe fn logdenominator_iterate_train_gaussian_low_memory(
         .expect("Error reading result data.");
 
     Box::into_raw(kde);
+    *error = Error::NoError;
 }
 
 unsafe fn logdenominator_iterate_train_gaussian_high_memory(
@@ -483,4 +486,5 @@ unsafe fn logdenominator_iterate_train_gaussian_high_memory(
         .expect("Error reading result data.");
 
     Box::into_raw(kde);
+    *error = Error::NoError;
 }

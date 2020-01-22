@@ -154,7 +154,8 @@ fn load_numpy_2d(array: *const DoubleNumpyArray) -> Array2<f64> {
 #[derive(PartialEq)]
 pub enum Error {
     NoError = 0,
-    MemoryError,
+    MemoryError = 1,
+    NotFinished = 2
 }
 
 /// Implements a KDE density model in OpenCL.
@@ -218,14 +219,15 @@ fn lognorm_factor(n: usize, d: usize, chol_cov: &Array2<f64>) -> f64 {
 #[no_mangle]
 pub unsafe extern "C" fn new_proque() -> *mut ProQue {
     // TODO: The OpenCL code should be included in the code to make easier distribute the library.
-
     let pro_que = ProQue::builder()
         .src(open_cl_code::OPEN_CL_CODE)
         .build()
         .expect("Error while creating OpenCL ProQue.");
 
     let proque_box = Box::new(pro_que);
-    Box::into_raw(proque_box)
+    let ptr = Box::into_raw(proque_box);
+//    println!("\t[RUST] New proque {:p}", ptr);
+    ptr
 }
 
 /// Initializes a `KDEDensityOcl`. It expects two `DoubleNumpyArray` with the cholesky decomposition
@@ -244,6 +246,7 @@ pub unsafe extern "C" fn gaussian_kde_init(
     training_data: *const DoubleNumpyArray,
     error: *mut Error,
 ) -> *mut GaussianKDE {
+    *error = Error::NotFinished;
     let n = *(*training_data).shape;
     let d = *(*chol).shape;
     let chol_cov = load_numpy_2d(chol);
@@ -271,6 +274,7 @@ pub unsafe extern "C" fn gaussian_kde_init(
 
     let ptr_kde = Box::into_raw(kde);
 
+//    println!("\t[RUST] Gaussian_kde_init {:p}", ptr_kde);
     Box::into_raw(pro_que);
 
     *error = Error::NoError;
@@ -280,6 +284,7 @@ pub unsafe extern "C" fn gaussian_kde_init(
 /// Frees the `KDEDensityOcl`.
 #[no_mangle]
 pub extern "C" fn gaussian_kde_free(kde: *mut GaussianKDE) {
+//    println!("\t[RUST] Gaussian_kde_free {:p}", kde);
     if kde.is_null() {
         return;
     }
@@ -291,6 +296,7 @@ pub extern "C" fn gaussian_kde_free(kde: *mut GaussianKDE) {
 /// Frees the `ProQue`.
 #[no_mangle]
 pub extern "C" fn gaussian_proque_free(pro_que: *mut ProQue) {
+//    println!("\t[RUST] Free Proque! {:p}", pro_que);
     if pro_que.is_null() {
         return;
     }
@@ -490,6 +496,7 @@ pub unsafe extern "C" fn gaussian_kde_pdf(
     result: *mut c_double,
     error: *mut Error,
 ) {
+    *error = Error::NotFinished;
     let kde = Box::from_raw(kde);
     let pro_que = Box::from_raw(pro_que);
 
@@ -824,11 +831,12 @@ pub unsafe extern "C" fn gaussian_kde_logpdf(
     result: *mut c_double,
     error: *mut Error,
 ) {
+    *error = Error::NotFinished;
+//    println!("\t[RUST] kde_logpdf KDE {:p}", kde);
     let mut kde_box = Box::from_raw(kde);
     let mut pro_que = Box::from_raw(pro_que);
     let m = *(*x).shape;
 
-    *error = Error::NoError;
     if kde_box.n >= m {
         logpdf_iterate_test(&mut kde_box, &mut pro_que, x, result, error);
     } else {
@@ -966,6 +974,7 @@ unsafe fn logpdf_iterate_test(
         .read(final_result)
         .enq()
         .expect("Error reading result data.");
+    *error = Error::NoError;
 }
 
 /// Finds the maximum element in the vector buffer `max_buffer` and places the result in the first
@@ -1313,6 +1322,7 @@ unsafe fn logpdf_iterate_train_low_memory(
         .read(final_result)
         .enq()
         .expect("Error reading result data.");
+    *error = Error::NoError;
 }
 
 /// Iterates over the training data to compute the logpdf of each test point using a $`m \times n`$
@@ -1459,6 +1469,7 @@ unsafe fn logpdf_iterate_train_high_memory(
         .read(final_result)
         .enq()
         .expect("Error reading result data.");
+    *error = Error::NoError;
 }
 
 /// Finds the maximum element of each row in the matrix buffer `max_buffer` and saves the result in

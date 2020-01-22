@@ -10,6 +10,7 @@ from pgmpy.models import HybridContinuousModel, BayesianModel
 from pgmpy.estimators import GaussianBicScore, MaximumLikelihoodEstimator
 
 from time import time
+from sklearn.model_selection import KFold
 
 # Example Gaussian data a -> c <- b
 def basic_data_f():
@@ -198,6 +199,11 @@ def total_score_pl(graph, pl):
 
     return total_score
 
+blocks = pd.read_csv("page-blocks.csv")
+blocks = blocks.drop("class", axis=1)
+blocks = blocks.astype('float64')
+blocks = blocks.loc[:, blocks.var() != 0]
+
 if __name__ == '__main__':
 
     # test_ckde_results('c', [], {})
@@ -208,20 +214,41 @@ if __name__ == '__main__':
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.GAUSSIAN})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.CKDE})
 
-    # start = HybridContinuousModel.load_model('iterations/000080.pkl')
-    # pl = ValidationLikelihood(ecoli_data, k=2, seed=0)
-    pl = CVPredictiveLikelihood(ecoli_data, k=2, seed=0)
+    start = HybridContinuousModel.load_model('iterations/000080.pkl')
+    pl = ValidationLikelihood(ecoli_data, k=10, seed=0)
+    # pl = CVPredictiveLikelihood(ecoli_data, k=10, seed=0)
     hc = HybridCachedHillClimbing(ecoli_data, scoring_method=pl)
-
     cb_draw = DrawModel('iterations')
     cb_save = SaveModel('iterations')
+    # start = HybridContinuousModel.load_model('iterations/000099.pkl')
+    bn = hc.estimate(callbacks=[cb_draw, cb_save], significant_threshold=np.inf)
 
-    bn = hc.estimate(callbacks=[cb_draw, cb_save])
+    # p = {'a': NodeType.CKDE, 'b': NodeType.CKDE, 'c': NodeType.GAUSSIAN}
+    # a = MaximumLikelihoodEstimator.ckde_estimate_with_parents('a', ['b', 'c'], p, mixture_data)
+    #
+    # inst = pd.DataFrame({'a': [2.3, -0.5, 1.7], 'b': [0.3, 1.2, -3.1], 'c': [-0.3, 2.2, 0.9]})
+    # log = a.logpdf_dataset(inst)
+    # while True:
+    #     if np.any(log != a.logpdf_dataset(inst)):
+    #         print("Error")
+    #         input()
 
-    # pl = GaussianValidationLikelihood(ecoli_data, k=2, seed=0)
-    # ghc = CachedHillClimbing(ecoli_data, scoring_method=pl)
-    # gbn = ghc.estimate_validation()
-
-    # bnmodel = HybridContinuousModel.load_model('iterations/000088.pkl')
-    # bnmodel = BayesianModel.load_model('iterations/000087.pkl')
-    # to_bnlearn_str(bnmodel)
+    # cv_indices = list(KFold(10, shuffle=True, random_state=0).split(blocks))
+    #
+    # parents = ["blackpix", "wb_trans", "p_black", "p_and", "eccen", "area"]
+    # parents_new = ["blackpix", "wb_trans", "p_black", "p_and", "eccen", "area", "length"]
+    #
+    # train_blocks = blocks.iloc[cv_indices[7][0],:]
+    #
+    # pl = CVPredictiveLikelihood(train_blocks, k=2, seed=924231285)
+    #
+    # node_type = {'mean_tr': NodeType.GAUSSIAN, "area": NodeType.CKDE, "length": NodeType.CKDE,
+    #              "wb_trans": NodeType.CKDE, "eccen": NodeType.CKDE, "blackpix": NodeType.CKDE,
+    #              "p_and": NodeType.CKDE, "p_black": NodeType.CKDE, "height": NodeType.GAUSSIAN,
+    #              "blackand": NodeType.CKDE}
+    #
+    # score = pl.local_score("blackand", parents, node_type["blackand"], node_type)
+    # new_score = pl.local_score("blackand", parents_new, node_type["blackand"], node_type)
+    #
+    # print(str(new_score - score))
+    # # print(pl.fold_indices)

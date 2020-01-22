@@ -332,7 +332,7 @@ class HybridContinuousModel(BayesianModel):
     def __setstate__(self, state):
         self.__dict__.update(state)
 
-    def predict_logpdf(self, data):
+    def logpdf_dataset(self, data):
         logpdf = np.zeros((data.shape[0],))
 
         for n in self.nodes:

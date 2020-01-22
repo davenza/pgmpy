@@ -31,17 +31,23 @@ class _CFFIDoubleArray(object):
 class Error:
     NoError = 0
     MemoryError = 1
+    NotFinished = 2
 
 class CKDE_CPD(BaseFactor):
 
     default_pro_que = None
 
-    def __init__(self, variable, gaussian_cpds, kde_instances, evidence=[], evidence_type={}, bw_method=None):
+    def __init__(self, variable, gaussian_cpds, kde_instances, evidence=None, evidence_type=None, bw_method=None):
         """
         Parameters
         ----------
 
         """
+        if evidence is None:
+            evidence = []
+        if evidence_type is None:
+            evidence_type = {}
+
         self.variable = variable
         self.evidence = evidence
         self.gaussian_evidence = []
@@ -138,7 +144,7 @@ class CKDE_CPD(BaseFactor):
 
         kde_indices = ffi.cast("unsigned int*", self.kde_indices.ctypes.data)
 
-        error = ffi.new("Error*", 0)
+        error = ffi.new("Error*", Error.NotFinished)
 
         lognorm_factor = self._logdenominator_factor()
 
@@ -150,8 +156,11 @@ class CKDE_CPD(BaseFactor):
                              len(self.gaussian_cpds),
                              lognorm_factor, error)
 
-        if error[0] == Error.MemoryError:
-            raise MemoryError("Memory error allocating space in the OpenCL device.")
+        if error[0] != Error.NoError:
+            if error[0] == Error.MemoryError:
+                raise MemoryError("Memory error allocating space in the OpenCL device.")
+            elif error[0] == Error.NotFinished:
+                raise Exception("CKDE code not finished.")
 
         self.ckde = ffi.gc(ckde, lib.ckde_free)
 
@@ -177,7 +186,7 @@ class CKDE_CPD(BaseFactor):
         # Avoid freeing GaussianRegression before the CKDE is freed.
         self._gaussian_regressors = []
 
-        error = ffi.new("Error*", 0)
+        error = ffi.new("Error*", Error.NotFinished)
         for idx, gaussian_cpd in enumerate(self.gaussian_cpds):
             evidence_index = np.asarray([self.evidence.index(e)+1 for e in gaussian_cpd.evidence if e != self.variable], dtype=np.uint32)
 
@@ -192,8 +201,11 @@ class CKDE_CPD(BaseFactor):
                                                len(gaussian_cpd.evidence),
                                                gaussian_cpd.variance,
                                                error)
-            if error[0] == Error.MemoryError:
-                raise MemoryError("Memory error allocating space in the OpenCL device.")
+            if error[0] != Error.NoError:
+                if error[0] == Error.MemoryError:
+                    raise MemoryError("Memory error allocating space in the OpenCL device.")
+                elif error[0] == Error.NotFinished:
+                    raise Exception("CKDE code not finished.")
 
             gr = ffi.gc(gr, lib.gaussian_regression_free)
             self._gaussian_regressors.append(gr)
@@ -202,10 +214,14 @@ class CKDE_CPD(BaseFactor):
     def _init_kde(self):
         chol = _CFFIDoubleArray(self.cholesky, ffi)
         dataset = _CFFIDoubleArray(self.kde_instances, ffi)
-        error = ffi.new("Error*", 0)
+        error = ffi.new("Error*", Error.NotFinished)
         self.kdedensity = lib.gaussian_kde_init(self.pro_que, chol.c_ptr(), dataset.c_ptr(), error)
-        if error[0] == Error.MemoryError:
-            raise MemoryError("Memory error allocating space in the OpenCL device.")
+
+        if error[0] != Error.NoError:
+            if error[0] == Error.MemoryError:
+                raise MemoryError("Memory error allocating space in the OpenCL device.")
+            elif error[0] == Error.NotFinished:
+                raise Exception("CKDE code not finished.")
         self.kdedensity = ffi.gc(self.kdedensity, lib.gaussian_kde_free)
 
     @property
@@ -242,10 +258,13 @@ class CKDE_CPD(BaseFactor):
         result = np.empty((m,), dtype=np.float64)
         cffi_points = _CFFIDoubleArray(points, ffi)
         cffi_result = ffi.cast("double *", result.ctypes.data)
-        error = ffi.new("Error*", 0)
+        error = ffi.new("Error*", Error.NotFinished)
         lib.gaussian_kde_logpdf(self.kdedensity, self.pro_que, cffi_points.c_ptr(), cffi_result, error)
-        if error[0] == Error.MemoryError:
-            raise MemoryError("Memory error allocating space in the OpenCL device.")
+        if error[0] != Error.NoError:
+            if error[0] == Error.MemoryError:
+                raise MemoryError("Memory error allocating space in the OpenCL device.")
+            elif error[0] == Error.NotFinished:
+                raise Exception("CKDE code not finished.")
         return result
 
 
@@ -284,10 +303,13 @@ class CKDE_CPD(BaseFactor):
         result = np.empty((m,), dtype=np.float64)
         cffi_points = _CFFIDoubleArray(points, ffi)
         cffi_result = ffi.cast("double *", result.ctypes.data)
-        error = ffi.new("Error*", 0)
+        error = ffi.new("Error*", Error.NotFinished)
         lib.logdenominator_dataset_gaussian(self.ckde, self.pro_que, cffi_points.c_ptr(), cffi_result, error)
-        if error[0] == Error.MemoryError:
-            raise MemoryError("Memory error allocating space in the OpenCL device.")
+        if error[0] != Error.NoError:
+            if error[0] == Error.MemoryError:
+                raise MemoryError("Memory error allocating space in the OpenCL device.")
+            elif error[0] == Error.NotFinished:
+                raise Exception("CKDE code not finished.")
         return result
 
 
@@ -298,10 +320,13 @@ class CKDE_CPD(BaseFactor):
         result = np.empty((m,), dtype=np.float64)
         cffi_points = _CFFIDoubleArray(points, ffi)
         cffi_result = ffi.cast("double *", result.ctypes.data)
-        error = ffi.new("Error*", 0)
+        error = ffi.new("Error*", Error.NotFinished)
         lib.logdenominator_dataset_onlykde(self.ckde, self.pro_que, cffi_points.c_ptr(), cffi_result, error)
-        if error[0] == Error.MemoryError:
-            raise MemoryError("Memory error allocating space in the OpenCL device.")
+        if error[0] != Error.NoError:
+            if error[0] == Error.MemoryError:
+                raise MemoryError("Memory error allocating space in the OpenCL device.")
+            elif error[0] == Error.NotFinished:
+                raise Exception("CKDE code not finished.")
         return result
 
     def _logdenominator_dataset_mix(self, dataset):
@@ -311,10 +336,13 @@ class CKDE_CPD(BaseFactor):
         result = np.empty((m,), dtype=np.float64)
         cffi_points = _CFFIDoubleArray(points, ffi)
         cffi_result = ffi.cast("double *", result.ctypes.data)
-        error = ffi.new("Error*", 0)
+        error = ffi.new("Error*", Error.NotFinished)
         lib.logdenominator_dataset(self.ckde, self.pro_que, cffi_points.c_ptr(), cffi_result, error)
-        if error[0] == Error.MemoryError:
-            raise MemoryError("Memory error allocating space in the OpenCL device.")
+        if error[0] != Error.NoError:
+            if error[0] == Error.MemoryError:
+                raise MemoryError("Memory error allocating space in the OpenCL device.")
+            elif error[0] == Error.NotFinished:
+                raise Exception("CKDE code not finished.")
         return result
 
 

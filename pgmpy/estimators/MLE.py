@@ -216,7 +216,10 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         chain_rule_parents = [node] + ckde_parents
 
         for g in gaussian_parents:
-            gaussian_cpds.append(MaximumLikelihoodEstimator.gaussian_estimate_with_parents(g, chain_rule_parents, data))
+            g_cpd = MaximumLikelihoodEstimator.gaussian_estimate_with_parents(g, chain_rule_parents, data)
+            if g_cpd is None:
+                raise ValueError("A gaussian CPD could not be estimated.")
+            gaussian_cpds.append(g_cpd)
             chain_rule_parents = chain_rule_parents.copy()
             chain_rule_parents.append(g)
 

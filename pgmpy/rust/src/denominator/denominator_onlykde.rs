@@ -18,6 +18,9 @@ pub unsafe extern "C" fn logdenominator_dataset_onlykde(
     result: *mut c_double,
     error: *mut Error,
 ) {
+
+//    println!("\t[RUST] logdenominator_gaussian_kde {:p}", ckde);
+    *error = Error::NotFinished;
     let mut ckde = Box::from_raw(ckde);
     let mut pro_que = Box::from_raw(pro_que);
     let m = *(*x).shape;
@@ -181,6 +184,7 @@ unsafe fn logdenominator_iterate_test_onlykde(
         .expect("Error reading result data.");
 
     Box::into_raw(kde);
+    *error = Error::NoError;
 }
 
 unsafe fn logdenominator_iterate_train_onlykde(
@@ -337,7 +341,7 @@ unsafe fn logdenominator_iterate_train_low_memory_onlykde(
         .expect("Error reading result data.");
 
     Box::into_raw(kde);
-
+    *error = Error::NoError;
 }
 
 unsafe fn logdenominator_iterate_train_high_memory_onlykde(
@@ -483,4 +487,5 @@ unsafe fn logdenominator_iterate_train_high_memory_onlykde(
         .expect("Error reading result data.");
 
     Box::into_raw(kde);
+    *error = Error::NoError;
 }
