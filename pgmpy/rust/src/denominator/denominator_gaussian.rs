@@ -180,9 +180,7 @@ unsafe fn logdenominator_iterate_test_gaussian(
         .expect("Kernel sum_constant build failed.");
 
     kernel_sum_constant.enq().expect("Error while executing sum_constant kernel.");
-
     let final_result = slice::from_raw_parts_mut(result, m);
-
     final_result_buffer
         .cmd()
         .queue(pro_que.queue())

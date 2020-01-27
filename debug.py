@@ -199,29 +199,114 @@ def total_score_pl(graph, pl):
 
     return total_score
 
+def remove_crossvalidated_nan(train_data, folds):
+
+    to_delete = set()
+    for k in folds:
+        vl = ValidationLikelihood(train_data, k=k, seed=0)
+        for (train_indices, _) in vl.fold_indices:
+            cv_data = train_data.iloc[train_indices,:]
+            d = cv_data.columns[cv_data.var() == 0].tolist()
+            to_delete.update(d)
+
+    return to_delete
+
+def linear_dependent_features(dataset):
+    to_remove = set()
+    rank = np.linalg.matrix_rank(dataset)
+    min_dim = min(dataset.shape[0], dataset.shape[1])
+
+    tmp_dataset = dataset.copy()
+    for i in range(min_dim - rank):
+        for column in tmp_dataset.columns:
+            cpy = tmp_dataset.drop(column, axis=1)
+            if np.linalg.matrix_rank(cpy) == rank:
+                to_remove.add(column)
+                tmp_dataset = cpy
+                break
+
+    return to_remove
+
+ctg = pd.read_csv("CTG.csv")
+if "class" in ctg.columns:
+    ctg = ctg.drop("class", axis=1)
+ctg = ctg.astype('float64')
+
+to_remove_features = remove_crossvalidated_nan(ctg, [2, 3, 5, 10])
+ctg = ctg.drop(to_remove_features, axis=1)
+
+dependent_features = linear_dependent_features(ctg)
+ctg = ctg.drop(dependent_features, axis=1)
+
 blocks = pd.read_csv("page-blocks.csv")
-blocks = blocks.drop("class", axis=1)
+if "class" in blocks.columns:
+    blocks = blocks.drop("class", axis=1)
 blocks = blocks.astype('float64')
-blocks = blocks.loc[:, blocks.var() != 0]
+
+to_remove_features = remove_crossvalidated_nan(blocks, [2, 3, 5, 10])
+blocks = blocks.drop(to_remove_features, axis=1)
+
+dependent_features = linear_dependent_features(blocks)
+blocks = blocks.drop(dependent_features, axis=1)
 
 if __name__ == '__main__':
 
     # test_ckde_results('c', [], {})
     # test_ckde_results('c', ['a'], {'a': NodeType.GAUSSIAN})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.GAUSSIAN})
+    # test_ckde_results('c', ['b', 'a'], {'b': NodeType.GAUSSIAN, 'a': NodeType.GAUSSIAN})
     # test_ckde_results('c', ['a'], {'a': NodeType.CKDE})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.CKDE})
+    # test_ckde_results('c', ['b', 'a'], {'b': NodeType.CKDE, 'a': NodeType.CKDE})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.GAUSSIAN})
+    # test_ckde_results('c', ['b', 'a'], {'b': NodeType.GAUSSIAN, 'a': NodeType.CKDE})
     # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.CKDE})
+    # test_ckde_results('c', ['b', 'a'], {'b': NodeType.CKDE, 'a': NodeType.GAUSSIAN})
 
-    start = HybridContinuousModel.load_model('iterations/000080.pkl')
-    pl = ValidationLikelihood(ecoli_data, k=10, seed=0)
-    # pl = CVPredictiveLikelihood(ecoli_data, k=10, seed=0)
-    hc = HybridCachedHillClimbing(ecoli_data, scoring_method=pl)
-    cb_draw = DrawModel('iterations')
-    cb_save = SaveModel('iterations')
-    # start = HybridContinuousModel.load_model('iterations/000099.pkl')
-    bn = hc.estimate(callbacks=[cb_draw, cb_save], significant_threshold=np.inf)
+    # print("all blocks = " + str(len(blocks)))
+    folds = list(KFold(10, shuffle=True, random_state=0).split(blocks))
+
+    fold0_train, fold0_test = folds[0]
+    train_dataset = blocks.iloc[fold0_train,:]
+    # print("train dataset = " + str(len(train_dataset)))
+    vl = ValidationLikelihood(train_dataset, k=2, seed=0)
+
+    a = vl.local_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN})
+
+    i = 0
+    while True:
+        i += 1
+        vl2 = ValidationLikelihood(train_dataset, k=2, seed=0)
+
+        b = vl2.local_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN})
+
+        if a != b:
+            c = vl2.local_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN})
+            print("Fail")
+            print("a = " + str(a) + ", b = " + str(b) + ", c = " + str(c))
+
+            if a == c:
+                print("c equal to a, i = " + str(i))
+            if b == c:
+                print("c equal to b, i = " + str(i))
+
+
+    # np = vl.local_score('Nzeros', [], NodeType.CKDE, {})
+    # p = vl.local_score('Nzeros', ['ASTV'], NodeType.CKDE, {'ASTV': NodeType.GAUSSIAN})
+    # print("Delta: " + str(p - np))
+    # print(np)
+    # print(p)
+
+    # hc = HybridCachedHillClimbing(train_dataset, scoring_method=vl)
+
+    # start = HybridContinuousModel.load_model('iterations/000080.pkl')
+    # pl = ValidationLikelihood(ecoli_data, k=10, seed=0)
+    # # pl = CVPredictiveLikelihood(ecoli_data, k=10, seed=0)
+    # hc = HybridCachedHillClimbing(ecoli_data, scoring_method=pl)
+    # cb_draw = DrawModel('iterations')
+    # cb_save = SaveModel('iterations')
+    # # start = HybridContinuousModel.load_model('iterations/000099.pkl')
+    # bn = hc.estimate(callbacks=[cb_draw, cb_save], significant_threshold=np.inf)
 
     # p = {'a': NodeType.CKDE, 'b': NodeType.CKDE, 'c': NodeType.GAUSSIAN}
     # a = MaximumLikelihoodEstimator.ckde_estimate_with_parents('a', ['b', 'c'], p, mixture_data)

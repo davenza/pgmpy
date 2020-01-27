@@ -155,3 +155,71 @@ macro_rules! print_buffers {
         )+
     };
 }
+
+#[macro_export]
+macro_rules! print_buffers_simple {
+    ($pro_que:expr, $($buffer:expr),+) => {
+        $(
+            let len_buffer = $buffer.len();
+            let mut vec = vec![Default::default(); len_buffer];
+            $buffer
+            .cmd()
+            .queue($pro_que.queue())
+            .read(&mut vec)
+            .enq()
+            .expect("Error reading result data.");
+
+            if vec.len() > 20 {
+                println!("{} = [{:?}, {:?}]", stringify!($buffer), &vec[..10], &vec[vec.len()-10..]);
+            }
+            else {
+                println!("{} = {:?}", stringify!($buffer), &vec);
+            }
+
+        )+
+    };
+}
+
+
+#[macro_export]
+macro_rules! to_cpu {
+    ($pro_que:expr, $($buffer:expr),+) => {
+        {
+            (
+                $(
+                    to_cpu_single!($pro_que, $buffer),
+                )+
+
+            )
+        }
+//        $(
+//            let len_buffer = $buffer.len();
+//            let mut vec = vec![Default::default(); len_buffer];
+//            $buffer
+//            .cmd()
+//            .queue($pro_que.queue())
+//            .read(&mut vec)
+//            .enq()
+//            .expect("Error reading result data.");
+//        )+
+    };
+}
+
+#[macro_export]
+macro_rules! to_cpu_single {
+    ($pro_que:expr, $buffer:expr) => {
+        {
+            let len_buffer = $buffer.len();
+            let mut vec = vec![Default::default(); len_buffer];
+            $buffer
+            .cmd()
+            .queue($pro_que.queue())
+            .read(&mut vec)
+            .enq()
+            .expect("Error reading result data.");
+            vec
+        }
+    };
+}
+
+

@@ -352,8 +352,7 @@ class HybridCachedHillClimbing(StructureEstimator):
             to_update_types.add(dest)
 
             if model.node_type[dest] == NodeType.CKDE:
-                for p in model.get_parents(dest):
-                    to_update_types.add(p)
+                to_update_types.update(model.get_parents(dest))
 
         elif operation == "-":
             model.remove_edge(source, dest)
@@ -362,12 +361,13 @@ class HybridCachedHillClimbing(StructureEstimator):
             to_update_arcs.update(self.arcset_to_node(model, dest))
             # Update the score of adding the score in the opposite direction (dest -> source).
             to_update_arcs.add((dest, source))
+            to_update_arcs.add((source, dest))
 
             to_update_types.add(dest)
 
             if model.node_type[dest] == NodeType.CKDE:
-                for p in model.get_parents(dest):
-                    to_update_types.add(p)
+                to_update_types.add(source)
+                to_update_types.update(model.get_parents(dest))
 
         elif operation == "flip":
             model.remove_edge(source, dest)
@@ -1167,7 +1167,6 @@ class HybridCachedHillClimbing(StructureEstimator):
             # #######################################
             # END DEBUG CODE!
             # #######################################
-
 
             models.append(current_model.copy())
             scores_history.append(new_score)

@@ -32,7 +32,10 @@ class ValidationLikelihood(StructureScore):
         node_data = self.data[[variable] + parents].dropna()
 
         for train_indices, test_indices in self.fold_indices:
-            train_data = node_data.iloc[train_indices]
+            # print("=========================")
+            # print()
+            train_data = node_data.iloc[train_indices,:]
+            # print("train_data cv = " + str(len(train_data)))
             if variable_type == NodeType.GAUSSIAN:
                 cpd = MaximumLikelihoodEstimator.gaussian_estimate_with_parents(variable, parents, train_data)
                 if cpd is None:
@@ -46,7 +49,7 @@ class ValidationLikelihood(StructureScore):
             else:
                 raise ValueError("Wrong node type for HybridContinuousModel.")
 
-            test_data = node_data.iloc[test_indices]
+            test_data = node_data.iloc[test_indices,:]
 
             score += cpd.logpdf_dataset(test_data).sum()
 

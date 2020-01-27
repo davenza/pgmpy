@@ -15,6 +15,8 @@ import atexit
 
 from math import log, pi
 
+import scipy.stats as stats
+
 class _CFFIDoubleArray(object):
     def __init__(self, array, ffi):
         self.shape = ffi.new("size_t[]", array.shape)
@@ -76,6 +78,8 @@ class CKDE_CPD(BaseFactor):
         self.set_bandwidth(bw_method=bw_method)
 
         self.n_kde = self.kde_instances.shape[1] - 1
+
+        self.kde = stats.gaussian_kde(kde_instances.T)
         self._initCFFI()
 
     def scotts_factor(self):
@@ -188,7 +192,8 @@ class CKDE_CPD(BaseFactor):
 
         error = ffi.new("Error*", Error.NotFinished)
         for idx, gaussian_cpd in enumerate(self.gaussian_cpds):
-            evidence_index = np.asarray([self.evidence.index(e)+1 for e in gaussian_cpd.evidence if e != self.variable], dtype=np.uint32)
+            evidence_index = np.asarray([self.evidence.index(e)+1 for e in gaussian_cpd.evidence if e != self.variable],
+                                        dtype=np.uint32)
 
             evidence_index_ptr = ffi.cast("unsigned int*", evidence_index.ctypes.data)
 
@@ -256,6 +261,18 @@ class CKDE_CPD(BaseFactor):
                 raise ValueError(msg)
 
         result = np.empty((m,), dtype=np.float64)
+
+        # print("m = " + str(m) + ", d = " + str(d))
+        # print("Python KDE instances = ")
+        # print(self.kde_instances)
+        # print("Python test instances")
+        # print(points)
+        #
+        # print("Python shape train = " + str(self.kde_instances.shape))
+        # print("Python shape test = " + str(points.shape))
+        # print("Python strides train = " + str(self.kde_instances.strides))
+        # print("Python strides test = " + str(points.strides))
+
         cffi_points = _CFFIDoubleArray(points, ffi)
         cffi_result = ffi.cast("double *", result.ctypes.data)
         error = ffi.new("Error*", Error.NotFinished)
@@ -272,16 +289,66 @@ class CKDE_CPD(BaseFactor):
         pass
 
     def logpdf_dataset(self, dataset):
+        test_dataset = dataset.loc[:, [self.variable] + self.kde_evidence].to_numpy()
+
         logpdf = self.kde_logpdf(dataset.loc[:,[self.variable] + self.kde_evidence])
+        # logpdf2 = self.kde.logpdf(test_dataset.T)
+
+        # if not np.all(np.isclose(logpdf, logpdf2)):
+        #     fail_indices = np.where(~np.isclose(logpdf, logpdf2))
+        #     from datetime import datetime
+        #     import os
+        #     with open('errors.log', 'a') as f:
+        #         f.write("[" + str(datetime.now()) + ", var = " + str(self.variable) + ", evidence = " +
+        #                 str([str(v) + ": " + str(NodeType.CKDE if v in self.kde_evidence else NodeType.GAUSSIAN) for v in self.evidence]) +
+        #                 "] KDE logpdf fail.\n" +
+        #                 "Covariance: " + str(self.covariance) + "\n" +
+        #                 "Shape: " + str(self.kde_instances.shape) + "\n" +
+        #                 "Strides: " + str(self.kde_instances.strides) + "\n" +
+        #                 "CPU: " + str(logpdf2[fail_indices]) + '\n' +
+        #                 "GPU: " + str(logpdf[fail_indices]) + '\n')
+        #         os.system('play -nq -t alsa synth {} sine {}'.format(1, 400))
+        #         raise ValueError("Wrong value in logpdf")
+
+            # lib.change_debug(True)
+            # a = self.kde_logpdf(dataset.loc[:,[self.variable] + self.kde_evidence])
+            # lib.change_debug(False)
+
 
         for i, gaussian_cpd in enumerate(self.gaussian_cpds):
             logpdf += gaussian_cpd.logpdf_dataset(dataset)
 
-        logpdf -= self._logdenominator_dataset(dataset.loc[:, [self.variable] + self.evidence])
+        den_logpdf = self._logdenominator_dataset(dataset.loc[:, [self.variable] + self.evidence])
+        # if self.n_kde == 0 and self.n_gaussian == 0:
+        #     den_logpdf2 = 0
+        # else:
+        #     den_logpdf2 = self._logdenominator_dataset_python(dataset.loc[:, [self.variable] + self.evidence])
+        #
+        # if not np.all(np.isclose(den_logpdf, den_logpdf2)):
+        #     fail_indices = np.where(~np.isclose(logpdf, logpdf2))
+        #     from datetime import datetime
+        #     import os
+        #     with open('errors.log', 'a') as f:
+        #         f.write("[" + str(datetime.now()) + ", var = " + str(self.variable) + ", evidence = " +
+        #                 str([str(v) + ": " + str(NodeType.CKDE if v in self.kde_evidence else NodeType.GAUSSIAN) for v in self.evidence]) +
+        #                 "] KDE logdenominator fail.\n" +
+        #                 "Covariance: " + str(self.covariance) + "\n" +
+        #                 "Shape: " + str(self.kde_instances.shape) + "\n" +
+        #                 "Strides: " + str(self.kde_instances.strides) + "\n" +
+        #                 "CPU: " + str(den_logpdf2[fail_indices]) + '\n' +
+        #                 "GPU: " + str(den_logpdf[fail_indices]) + '\n')
+        #         os.system('play -nq -t alsa synth {} sine {}'.format(1, 400))
+        #         raise ValueError("Wrong value in logdenominator")
+
+        logpdf -= den_logpdf
 
         return logpdf
 
     def _logdenominator_dataset(self, dataset):
+        # if self.n_kde == 0 and self.n_gaussian == 0:
+        #     return 0
+        # else:
+        #     return self._logdenominator_dataset_python(dataset)
         if self.n_kde == 0:
             if self.n_gaussian == 0:
                 return 0
@@ -310,6 +377,8 @@ class CKDE_CPD(BaseFactor):
                 raise MemoryError("Memory error allocating space in the OpenCL device.")
             elif error[0] == Error.NotFinished:
                 raise Exception("CKDE code not finished.")
+
+
         return result
 
 
@@ -361,14 +430,14 @@ class CKDE_CPD(BaseFactor):
 
         a *= 0.5
 
-        cte = dataset.shape[0]*(0.5*np.log(np.pi) -
-              np.log(self.kde_instances.shape[0]) -
-              0.5*np.log(a) -
-              0.5*(self.n_gaussian + self.n_kde + 1)*np.log(2*np.pi) -
-              0.5*np.log(np.linalg.det(covariance)) -
-              logvar_mult)
+        cte = 0.5*np.log(np.pi) -\
+              np.log(self.kde_instances.shape[0]) -\
+              0.5*np.log(a) -\
+              0.5*(self.n_gaussian + self.n_kde + 1)*np.log(2*np.pi) -\
+              0.5*np.log(np.linalg.det(covariance)) -\
+              logvar_mult
 
-        prob = 0
+        prob = np.empty((dataset.shape[0],))
 
         for i in range(dataset.shape[0]):
             Ti = (dataset.iloc[i].loc[self.kde_evidence].to_numpy() - self.kde_instances[:,1:])
@@ -394,7 +463,7 @@ class CKDE_CPD(BaseFactor):
                 ci += (diff * diff) / gaussian_cpd.variance
 
             ci *= -0.5
-            prob += logsumexp(((bi*bi) / (4*a)) + ci)
+            prob[i] = logsumexp(((bi*bi) / (4*a)) + ci)
 
         return cte + prob
 

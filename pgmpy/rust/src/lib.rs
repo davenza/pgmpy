@@ -311,9 +311,16 @@ unsafe fn is_rowmajor(x: *const DoubleNumpyArray) -> (bool, usize) {
     let row_stride = *(*x).strides;
     let column_stride = *(*x).strides.offset(1);
 
+
     if row_stride > column_stride {
+//        if DEBUG_MODE {
+//            println!("Rust strides: ({}, {}), row major", row_stride, column_stride);
+//        }
         (true, *(*x).shape.offset(1))
     } else {
+//        if DEBUG_MODE {
+//            println!("Rust strides: ({}, {}), column major", row_stride, column_stride);
+//        }
         (false, *(*x).shape)
     }
 }
@@ -335,6 +342,15 @@ fn kernel_substract_name(train_rowmajor: bool, test_rowmajor: bool) -> &'static 
         }
     }
 }
+
+//static mut DEBUG_MODE: bool = false;
+
+//#[no_mangle]
+//pub unsafe extern "C" fn change_debug(debug: bool) {
+//    println!("Change debug: {}", debug);
+//    DEBUG_MODE = debug;
+//}
+
 
 /// Computes the probability density function (pdf) evaluation of $`m`$ points given a KDE model.
 /// The $`m`$ testing points are in the `testing_data` `DoubleNumpyArray` with shape ($`m`$, $`d`$).
@@ -838,8 +854,14 @@ pub unsafe extern "C" fn gaussian_kde_logpdf(
     let m = *(*x).shape;
 
     if kde_box.n >= m {
+//        if DEBUG_MODE {
+//            println!("Iterate test");
+//        }
         logpdf_iterate_test(&mut kde_box, &mut pro_que, x, result, error);
     } else {
+//        if DEBUG_MODE {
+//            println!("Iterate train");
+//        }
         logpdf_iterate_train(&mut kde_box, &mut pro_que, x, result, error);
     }
 
@@ -858,22 +880,40 @@ unsafe fn logpdf_iterate_test(
     let m = *(*x).shape;
     let d = kde.d;
     let n = kde.n;
+//    println!("m = {}, d = {}, n = {}", m, d, n);
 
     let max_work_size = get_max_work_size(&pro_que);
+//    println!("max_work_size = {}", max_work_size);
 
     let local_work_size = if n < max_work_size { n } else { max_work_size };
+//    println!("local_work_size = {}", local_work_size);
     let num_groups = (n as f32 / local_work_size as f32).ceil() as usize;
+//    println!("num_groups = {}", num_groups);
 
     let test_slice = slice::from_raw_parts((*x).ptr, m * d);
 
     let (test_instances_buffer,) = copy_buffers!(pro_que, error, test_slice);
+
+//    print_buffers_simple!(pro_que, kde.training_data, test_instances_buffer);
 
     let (max_buffer, final_result_buffer, tmp_matrix_buffer, tmp_vec_buffer) =
         empty_buffers!(pro_que, error, f64, num_groups, m, n * d, n);
 
     let (test_rowmajor, test_leading_dimension) = is_rowmajor(x);
 
+//    println!("train_rowmajor = {}, test_rowmajor = {}, train_leading_dimension = {}, \
+//    test_leading_dimension = {}", kde.rowmajor, test_rowmajor,
+//             kde.leading_dimension, test_leading_dimension);
+
     let substract_name = kernel_substract_name(kde.rowmajor, test_rowmajor);
+
+//    if DEBUG_MODE {
+//        println!("Train rowmajor: {}, n: {}, d: {}, leading_dimension: {}",
+//                 kde.rowmajor, kde.n, kde.d, kde.leading_dimension);
+//
+//        print_buffers!(pro_que, kde.training_data);
+//        println!("Debugging mode!");
+//    }
 
     let kernel_substract = pro_que
         .kernel_builder(substract_name)
@@ -929,15 +969,49 @@ unsafe fn logpdf_iterate_test(
         kernel_substract
             .enq()
             .expect("Error while executing substract kernel.");
+
+//        if i == 0 {
+//            print_buffers_simple!(pro_que,tmp_matrix_buffer);
+//        }
+
         kernel_solve
             .enq()
             .expect("Error while executing solve kernel.");
+
+//        if i == 0 {
+//            print_buffers_simple!(pro_que, tmp_matrix_buffer);
+//        }
+
         kernel_square
             .enq()
             .expect("Error while executing square kernel.");
+
+//        if i == 0 {
+//            print_buffers_simple!(pro_que, tmp_matrix_buffer);
+//        }
+
         kernel_sumout
             .enq()
             .expect("Error while executing logsumout kernel.");
+
+//        if i == 0 {
+//            println!("max_work_size = {} , local_work_size = {}, num_groups = {}", max_work_size, local_work_size, num_groups);
+//        }
+//
+//        if i == 0 {
+//            let (sumout_cpu, ) = to_cpu!(pro_que, tmp_vec_buffer);
+//
+//            let mut max = std::f64::MIN;
+//
+//
+//            for i in sumout_cpu.iter() {
+//                if *i > max {
+//                    max = *i;
+//                }
+//            }
+//
+//            println!("max_cpu = {:?} ", max);
+//        }
 
         max_gpu_vec_copy(
             &pro_que,
@@ -948,6 +1022,14 @@ unsafe fn logpdf_iterate_test(
             local_work_size,
             num_groups,
         );
+
+//        if i == 0 {
+//            println!("max_work_size = {} , local_work_size = {}, num_groups = {}", max_work_size, local_work_size, num_groups);
+//        }
+//
+//        if i == 0 {
+//            print_buffers_simple!(pro_que, max_buffer);
+//        }
 
         log_sum_gpu_vec(
             &pro_que,
