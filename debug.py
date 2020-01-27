@@ -271,25 +271,24 @@ if __name__ == '__main__':
     # print("train dataset = " + str(len(train_dataset)))
     vl = ValidationLikelihood(train_dataset, k=2, seed=0)
 
-    a = vl.local_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN})
+    a = vl.debug_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN})
 
     i = 0
     while True:
         i += 1
         vl2 = ValidationLikelihood(train_dataset, k=2, seed=0)
 
-        b = vl2.local_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN})
+        b = vl2.debug_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN}, expected_values=a)
 
-        if a != b:
-            c = vl2.local_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN})
-            print("Fail")
-            print("a = " + str(a) + ", b = " + str(b) + ", c = " + str(c))
+        if np.any(~np.isclose(a, b)):
+            different_indices = np.where(~np.isclose(a, b))
+            print("different_indices = " + str(different_indices))
+            print("a values = " + str(a[different_indices]) + ", i = " + str(i))
+            print("b values = " + str(b[different_indices]) + ", i = " + str(i))
 
-            if a == c:
-                print("c equal to a, i = " + str(i))
-            if b == c:
-                print("c equal to b, i = " + str(i))
+            c = vl2.debug_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN}, expected_values=a)
 
+            print("c values = " + str(c[different_indices]) + ", i = " + str(i))
 
     # np = vl.local_score('Nzeros', [], NodeType.CKDE, {})
     # p = vl.local_score('Nzeros', ['ASTV'], NodeType.CKDE, {'ASTV': NodeType.GAUSSIAN})

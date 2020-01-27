@@ -55,6 +55,43 @@ class ValidationLikelihood(StructureScore):
 
         return score
 
+    def debug_score(self, variable, parents, variable_type, parent_types, expected_values=None):
+        parents = list(parents)
+        node_data = self.data[[variable] + parents].dropna()
+
+        (train_indices, test_indices) = self.fold_indices[0]
+        train_data = node_data.iloc[train_indices,:]
+
+        if variable_type == NodeType.GAUSSIAN:
+            cpd = MaximumLikelihoodEstimator.gaussian_estimate_with_parents(variable, parents, train_data)
+            if cpd is None:
+                return np.nan
+        elif variable_type == NodeType.CKDE:
+            try:
+                cpd = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, parents, parent_types,
+                                                                            train_data)
+            except np.linalg.LinAlgError:
+                return np.nan
+        else:
+            raise ValueError("Wrong node type for HybridContinuousModel.")
+
+        test_data = node_data.iloc[test_indices,:]
+
+
+        score = cpd.logpdf_dataset(test_data)
+        if expected_values is not None:
+            if np.any(~np.isclose(score, expected_values)):
+                fail_indices = np.where(~np.isclose(score, expected_values))
+                print("Fail indices")
+                print("score = " + str(score[fail_indices]))
+                score2 = cpd.logpdf_dataset(test_data)
+                print("score2 = " + str(score2[fail_indices]))
+                score3 = cpd.logpdf_dataset(test_data)
+                print("score3 = " + str(score3[fail_indices]))
+
+
+        return score
+
     def validation_local_score(self, variable, parents, variable_type, parent_types):
         parents = list(parents)
         node_data = self.data[[variable] + parents].dropna()
