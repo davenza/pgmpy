@@ -1,6 +1,6 @@
 use crate::{empty_buffers, copy_buffers, Error, DoubleNumpyArray, buffer_fill_value,
-            get_max_work_size, is_rowmajor, max_gpu_vec_copy, log_sum_gpu_vec, max_gpu_mat,
-            sum_gpu_mat};
+            get_max_work_size, is_rowmajor, max_gpu_vec_copy, max_gpu_mat, sum_gpu_vec,
+            sum_gpu_mat, create_reduction_buffers_gpu_vec, create_reduction_buffers_gpu_mat};
 
 use crate::denominator::{CKDE, s2, s1_s3_coefficients};
 
@@ -100,10 +100,10 @@ unsafe fn logdenominator_iterate_test_gaussian(
     let (test_instances_buffer2,) = copy_buffers!(pro_que, error, test_slice);
 
     let (s1, s3, final_result_buffer, tmp_train_coefficients, max_coefficients) =
-        empty_buffers!(pro_que, error, f64, m, m, m, n, num_groups);
+        empty_buffers!(pro_que, error, f64, m, m, m, n, 1);
 
     let (s1_2, s3_2, final_result_buffer2, tmp_train_coefficients2, max_coefficients2) =
-        empty_buffers!(pro_que, error, f64, m, m, m, n, num_groups);
+        empty_buffers!(pro_que, error, f64, m, m, m, n, 1);
 
     let a = 0.5 * (ckde.precision_variable + s2(ckde));
 
@@ -175,7 +175,23 @@ unsafe fn logdenominator_iterate_test_gaussian(
         .build()
         .expect("Kernel onlygaussian_exponent_coefficients build failed.");
 
-    let kernel_log_sum_gpu = pro_que
+    let kernel_logsumexp_coeffs = pro_que
+        .kernel_builder("logsumexp_coeffs")
+        .global_work_size(n)
+        .arg(&tmp_train_coefficients)
+        .arg(&max_coefficients)
+        .build()
+        .expect("Kernel logsumexp_coeffs build failed.");
+
+    let kernel_logsumexp_coeffs2 = pro_que
+        .kernel_builder("logsumexp_coeffs")
+        .global_work_size(n)
+        .arg(&tmp_train_coefficients2)
+        .arg(&max_coefficients2)
+        .build()
+        .expect("Kernel logsumexp_coeffs build failed.");
+
+    let kernel_copy_logpdf = pro_que
         .kernel_builder("copy_logpdf_result")
         .global_work_size(1)
         .arg(&tmp_train_coefficients)
@@ -185,7 +201,7 @@ unsafe fn logdenominator_iterate_test_gaussian(
         .build()
         .expect("Kernel copy_logpdf_result build failed.");
 
-    let kernel_log_sum_gpu2 = pro_que
+    let kernel_copy_logpdf2 = pro_que
         .kernel_builder("copy_logpdf_result")
         .global_work_size(1)
         .arg(&tmp_train_coefficients2)
@@ -194,6 +210,9 @@ unsafe fn logdenominator_iterate_test_gaussian(
         .arg_named("offset", &0u32)
         .build()
         .expect("Kernel copy_logpdf_result build failed.");
+
+    let tmp_reduc_buffers = create_reduction_buffers_gpu_vec(pro_que, error, n, max_work_size, num_groups);
+    let tmp_reduc_buffers2 = create_reduction_buffers_gpu_vec(pro_que, error, n, max_work_size, num_groups);
 
     for i in 0..m {
         kernel_onlygaussian_exponent_coefficients.set_arg("test_index", i as u32).unwrap();
@@ -215,8 +234,8 @@ unsafe fn logdenominator_iterate_test_gaussian(
         max_gpu_vec_copy(
             pro_que,
             &tmp_train_coefficients,
+            &tmp_reduc_buffers,
             &max_coefficients,
-            n,
             max_work_size,
             local_work_size,
             num_groups,
@@ -225,8 +244,8 @@ unsafe fn logdenominator_iterate_test_gaussian(
         max_gpu_vec_copy(
             pro_que,
             &tmp_train_coefficients2,
+            &tmp_reduc_buffers2,
             &max_coefficients2,
-            n,
             max_work_size,
             local_work_size,
             num_groups,
@@ -245,47 +264,37 @@ unsafe fn logdenominator_iterate_test_gaussian(
             println!("Bug in kernel denominator max_gpu_vec_copy in index {}! Max1: {}, Max2: {}", i, cpu[0], cpu2[0]);
         }
 
-        log_sum_gpu_vec(
-            &pro_que,
-            &tmp_train_coefficients,
-            &max_coefficients,
-            n,
-            max_work_size,
-            local_work_size,
-            num_groups,
-        );
+        kernel_logsumexp_coeffs
+            .enq()
+            .expect("Error while executing logsumexp_coeffs kernel.");
 
-        log_sum_gpu_vec(
-            &pro_que,
-            &tmp_train_coefficients2,
-            &max_coefficients2,
-            n,
-            max_work_size,
-            local_work_size,
-            num_groups,
-        );
+        kernel_logsumexp_coeffs2
+        .enq()
+            .expect("Error while executing logsumexp_coeffs kernel.");
+
+        let (cpu, cpu2) = to_cpu!(pro_que, tmp_train_coefficients, tmp_train_coefficients2);
+
+        if !equal_slices!(cpu, cpu2) {
+            println!("Bug in denominator kernel_logsumexp_coeffs in index {}!", i);
+        }
+
+        sum_gpu_vec(&pro_que, &tmp_train_coefficients, &tmp_reduc_buffers, max_work_size, local_work_size, num_groups);
+        sum_gpu_vec(&pro_que, &tmp_train_coefficients2, &tmp_reduc_buffers2, max_work_size, local_work_size, num_groups);
 
         let (cpu, cpu2) = to_cpu!(pro_que, tmp_train_coefficients, tmp_train_coefficients2);
 
         let m : F64Margin = Default::default();
         if !cpu[0].approx_eq(cpu2[0], m) {
-            println!("Bug in denominator log_sum_gpu_vec in index {}! Sum1: {}, Sum2: {}", i, cpu[0], cpu2[0]);
+            println!("Bug in denominator sum_gpu_vec in index {}! Sum1: {}, Sum2: {}", i, cpu[0], cpu2[0]);
         }
 
-        let (cpu, cpu2) = to_cpu!(pro_que, max_coefficients, max_coefficients2);
-
-        let m : F64Margin = Default::default();
-        if !cpu[0].approx_eq(cpu2[0], m) {
-            println!("Bug in denominator log_sum_gpu_vec in index {}! Max1: {}, Max2: {}", i, cpu[0], cpu2[0]);
-        }
-
-        kernel_log_sum_gpu.set_arg("offset", i as u32).unwrap();
-        kernel_log_sum_gpu
+        kernel_copy_logpdf.set_arg("offset", i as u32).unwrap();
+        kernel_copy_logpdf
             .enq()
             .expect("Error while executing copy_logpdf_result kernel.");
 
-        kernel_log_sum_gpu2.set_arg("offset", i as u32).unwrap();
-        kernel_log_sum_gpu2
+        kernel_copy_logpdf2.set_arg("offset", i as u32).unwrap();
+        kernel_copy_logpdf2
             .enq()
             .expect("Error while executing copy_logpdf_result kernel.");
 
@@ -333,126 +342,6 @@ unsafe fn logdenominator_iterate_test_gaussian(
     Box::into_raw(kde);
     *error = Error::NoError;
 }
-
-
-//unsafe fn logdenominator_iterate_test_gaussian(
-//    ckde: &Box<CKDE>,
-//    pro_que: &mut Box<ProQue>,
-//    x: *const DoubleNumpyArray,
-//    result: *mut c_double,
-//    error: *mut Error,
-//) {
-//    let kde = Box::from_raw(ckde.kde);
-//    let test_shape = slice::from_raw_parts((*x).shape, 2);
-//
-//    let m = test_shape[0];
-//    let d_test = test_shape[1];
-//    let n = kde.n;
-//
-//    let max_work_size = get_max_work_size(&pro_que);
-//    let local_work_size = if n < max_work_size { n } else { max_work_size };
-//    let num_groups = (n as f32 / local_work_size as f32).ceil() as usize;
-//
-//    let test_slice = slice::from_raw_parts((*x).ptr, m * d_test);
-//
-//    let (test_instances_buffer,) = copy_buffers!(pro_que, error, test_slice);
-//
-//    let (s1, s3, final_result_buffer, tmp_train_coefficients, max_coefficients) =
-//        empty_buffers!(pro_que, error, f64, m, m, m, n, num_groups);
-//
-//    let a = 0.5 * (ckde.precision_variable + s2(ckde));
-//
-//    let (test_rowmajor, test_leading_dimension) = is_rowmajor(x);
-//
-//    s1_s3_coefficients(
-//        ckde,
-//        pro_que,
-//        &test_instances_buffer,
-//        test_leading_dimension as u32,
-//        test_rowmajor,
-//        &s1,
-//        &s3,
-//        m,
-//    );
-//
-//    let kernel_onlygaussian_exponent_coefficients = pro_que
-//        .kernel_builder(onlygaussian_exponent_coefficients_iterate_test_name(
-//            kde.rowmajor,
-//        ))
-//        .global_work_size(n)
-//        .arg(&kde.training_data)
-//        .arg(kde.leading_dimension as u32)
-//        .arg(&ckde.precision)
-//        .arg(&s1)
-//        .arg((4.0*a).recip())
-//        .arg(&s3)
-//        .arg_named("test_index", &0u32)
-//        .arg(&tmp_train_coefficients)
-//        .build()
-//        .expect("Kernel onlygaussian_exponent_coefficients build failed.");
-//
-//    let kernel_log_sum_gpu = pro_que
-//        .kernel_builder("copy_logpdf_result")
-//        .global_work_size(1)
-//        .arg(&tmp_train_coefficients)
-//        .arg(&max_coefficients)
-//        .arg(&final_result_buffer)
-//        .arg_named("offset", &0u32)
-//        .build()
-//        .expect("Kernel copy_logpdf_result build failed.");
-//
-//    for i in 0..m {
-//        kernel_onlygaussian_exponent_coefficients.set_arg("test_index", i as u32).unwrap();
-//        kernel_onlygaussian_exponent_coefficients
-//            .enq()
-//            .expect("Error while executing kernel_onlygaussian_exponent_coefficients kernel.");
-//
-//        max_gpu_vec_copy(
-//            pro_que,
-//            &tmp_train_coefficients,
-//            &max_coefficients,
-//            n,
-//            max_work_size,
-//            local_work_size,
-//            num_groups,
-//        );
-//
-//        log_sum_gpu_vec(
-//            &pro_que,
-//            &tmp_train_coefficients,
-//            &max_coefficients,
-//            n,
-//            max_work_size,
-//            local_work_size,
-//            num_groups,
-//        );
-//
-//        kernel_log_sum_gpu.set_arg("offset", i as u32).unwrap();
-//        kernel_log_sum_gpu
-//            .enq()
-//            .expect("Error while executing copy_logpdf_result kernel.");
-//    }
-//
-//    let kernel_sum_constant = pro_que
-//        .kernel_builder("sum_constant")
-//        .global_work_size(m)
-//        .arg(&final_result_buffer)
-//        .arg(ckde.lognorm_factor)
-//        .build()
-//        .expect("Kernel sum_constant build failed.");
-//
-//    kernel_sum_constant.enq().expect("Error while executing sum_constant kernel.");
-//    let final_result = slice::from_raw_parts_mut(result, m);
-//    final_result_buffer
-//        .cmd()
-//        .queue(pro_que.queue())
-//        .read(final_result)
-//        .enq()
-//        .expect("Error reading result data.");
-//
-//    Box::into_raw(kde);
-//    *error = Error::NoError;
-//}
 
 unsafe fn logdenominator_iterate_train_gaussian(
     ckde: &Box<CKDE>,
@@ -639,11 +528,14 @@ unsafe fn logdenominator_iterate_train_gaussian_high_memory(
     let (test_instances_buffer,) = copy_buffers!(pro_que, error, test_slice);
 
     let (s1, s3, final_result_buffer, max_coefficients) =
-        empty_buffers!(pro_que, error, f64, m, m, m, m * num_groups);
+        empty_buffers!(pro_que, error, f64, m, m, m, m);
 
     let a = 0.5 * (ckde.precision_variable + s2(ckde));
 
     let (test_rowmajor, test_leading_dimension) = is_rowmajor(x);
+
+    let tmp_reduc_buffers_mat = create_reduction_buffers_gpu_mat(pro_que, error, m, n,
+                                                                 max_work_size, num_groups);
 
     s1_s3_coefficients(
         ckde,
@@ -679,6 +571,7 @@ unsafe fn logdenominator_iterate_train_gaussian_high_memory(
     max_gpu_mat(
         &pro_que,
         tmp_coefficients,
+        tmp_reduc_buffers_mat,
         &max_coefficients,
         m,
         n,
@@ -687,23 +580,23 @@ unsafe fn logdenominator_iterate_train_gaussian_high_memory(
         num_groups,
     );
 
-    let kernel_exp_and_sum_mat = pro_que
-        .kernel_builder("exp_and_sum_mat")
+    let kernel_expmax_mat = pro_que
+        .kernel_builder("expmax_mat")
         .global_work_size(m * n)
         .arg(tmp_coefficients)
         .arg(&max_coefficients)
         .arg(n as u32)
-        .arg(num_groups as u32)
         .build()
-        .expect("Kernel exp_and_sum_mat build failed.");
+        .expect("Kernel expmax_mat build failed.");
 
-    kernel_exp_and_sum_mat
+    kernel_expmax_mat
         .enq()
         .expect("Error while executing exp_and_sum_mat kernel.");
 
     sum_gpu_mat(
         &pro_que,
         tmp_coefficients,
+        tmp_reduc_buffers_mat,
         m,
         n,
         max_work_size,
@@ -718,13 +611,12 @@ unsafe fn logdenominator_iterate_train_gaussian_high_memory(
         .arg(tmp_coefficients)
         .arg(&max_coefficients)
         .arg(n as u32)
-        .arg(num_groups as u32)
         .build()
         .expect("Kernel log_and_sum_mat build failed.");
 
     kernel_log_and_sum
         .enq()
-        .expect("Error while executing kernel_log_and_sum kernel.");
+        .expect("Error while executing log_and_sum_mat kernel.");
 
     let kernel_sum_constant = pro_que
         .kernel_builder("sum_constant")

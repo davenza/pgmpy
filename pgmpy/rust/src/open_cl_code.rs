@@ -159,7 +159,7 @@ __kernel void square(__global double *solve_data) {
 ##########################################
 */
 
-__kernel void sumout(__constant double *square_data,
+__kernel void pdf_density(__constant double *square_data,
                     __global double *sol_vec,
                     __private uint n_col,
                     __private double lognorm_factor) {
@@ -174,70 +174,24 @@ __kernel void sumout(__constant double *square_data,
     sol_vec[r] = exp(-0.5 * sol_vec[r] - lognorm_factor);
 }
 
-__kernel void sum_gpu_vec(__global double *input,
-                          __local double *localSums) {
+__kernel void parallel_sum_gpu(__constant double *input,
+                            __private uint n,
+                            __local double *localSums,
+                            __global double* output) {
     uint global_id = get_global_id(0);
     uint local_id = get_local_id(0);
     uint group_size = get_local_size(0);
     uint group_id = get_group_id(0);
     uint num_groups = get_num_groups(0);
-
-//    printf("global_id %d, global_size %d, local_id %d, group_id %d, num_groups %d, group_size %d, new_group_size %d",
-//            global_id, get_global_size(0), local_id, group_id, num_groups, get_local_size(0), group_size);
-
-    if (group_id == num_groups) {
-        group_size = get_global_size(0) - group_id*group_size;
-
-//        printf("global_id %d, global_size %d, local_id %d, group_id %d, num_groups %d, group_size %d, new_group_size %d",
-//                global_id, get_global_size(0), local_id, group_id, num_groups, get_local_size(0), group_size);
-    }
-
-    localSums[local_id] = input[global_id];
-
-    while (group_size > 1) {
-        int stride = group_size / 2;
-        barrier(CLK_LOCAL_MEM_FENCE);
-        if (group_size % 2 == 0) {
-            if (local_id < stride) {
-                localSums[local_id] += localSums[local_id + stride];
-            }
-
-            group_size = group_size / 2;
-        }
-        else {
-            if (local_id < stride) {
-                localSums[local_id+1] += localSums[local_id+1 + stride];
-            }
-            group_size = (group_size / 2) + 1;
-        }
-    }
-
-    barrier(CLK_GLOBAL_MEM_FENCE);
-    if (local_id == 0) {
-        input[group_id] = localSums[0];
-    }
-}
-
-__kernel void debug_sum_gpu_vec(__global double *input,
-        __private uint n,
-        __local double *localSums) {
-    uint global_id = get_global_id(0);
-    uint local_id = get_local_id(0);
-    uint group_size = get_local_size(0);
-    uint group_id = get_group_id(0);
-    uint num_groups = get_num_groups(0);
-
-//    printf("global_id %d, global_size %d, local_id %d, group_id %d, num_groups %d, group_size %d, new_group_size %d",
-//            global_id, get_global_size(0), local_id, group_id, num_groups, get_local_size(0), group_size);
 
     if (group_id == num_groups-1) {
         group_size = n - group_id*group_size;
 
-//        printf("global_id %d, global_size %d, local_id %d, group_id %d, num_groups %d, group_size %d, new_group_size %d",
-//                global_id, get_global_size(0), local_id, group_id, num_groups, get_local_size(0), group_size);
+        if (global_id < n) {
+            localSums[local_id] = input[global_id];
+        }
     }
-
-    if (global_id < n) {
+    else {
         localSums[local_id] = input[global_id];
     }
 
@@ -251,19 +205,51 @@ __kernel void debug_sum_gpu_vec(__global double *input,
 
             group_size = group_size / 2;
         }
-
         else {
             if (local_id < stride) {
                 localSums[local_id+1] += localSums[local_id+1 + stride];
             }
-
             group_size = (group_size / 2) + 1;
         }
     }
 
-    barrier(CLK_GLOBAL_MEM_FENCE);
+    barrier(CLK_LOCAL_MEM_FENCE);
     if (local_id == 0) {
-        input[group_id] = localSums[0];
+        output[group_id] = localSums[0];
+    }
+}
+
+__kernel void parallel_sum_gpu_single_wg(__constant double *input,
+        __private uint n,
+        __local double *localSums,
+        __global double* output) {
+
+    uint global_id = get_global_id(0);
+    uint group_size = n;
+
+    localSums[global_id] = input[global_id];
+
+    while (group_size > 1) {
+        int stride = group_size / 2;
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if (group_size % 2 == 0) {
+            if (local_id < stride) {
+                localSums[global_id] += localSums[global_id + stride];
+            }
+
+            group_size = group_size / 2;
+        }
+        else {
+            if (local_id < stride) {
+                localSums[global_id+1] += localSums[global_id+1 + stride];
+            }
+            group_size = (group_size / 2) + 1;
+        }
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (global_id == 0) {
+        output[0] = localSums[0];
     }
 }
 
@@ -274,7 +260,7 @@ __kernel void debug_sum_gpu_vec(__global double *input,
 ##########################################
 */
 
-__kernel void logsumout(__constant double *square_data,
+__kernel void logpdf(__constant double *square_data,
                         __global double *sol_vec,
                         __private uint n_col,
                         __private double lognorm_factor) {
@@ -289,148 +275,26 @@ __kernel void logsumout(__constant double *square_data,
     sol_vec[r] = (-0.5 * sol_vec[r]) - lognorm_factor;
 }
 
-__kernel void max_gpu_vec_copy(__constant double *input,
-                               __global double *maxGroups,
-                               __local double *localMaxs) {
+__kernel void parallel_max_gpu(__constant double *input,
+                            __private uint n,
+                            __local double *localMaxs,
+                            __global double* output)
+{
     uint global_id = get_global_id(0);
     uint local_id = get_local_id(0);
     uint group_size = get_local_size(0);
     uint group_id = get_group_id(0);
     uint num_groups = get_num_groups(0);
-
-    if (group_id == num_groups) {
-        group_size = get_global_size(0) - group_id*group_size;
-    }
-
-    localMaxs[local_id] = input[global_id];
-
-    while (group_size > 1) {
-        int stride = group_size / 2;
-        barrier(CLK_LOCAL_MEM_FENCE);
-        if (group_size % 2 == 0) {
-            if (local_id < stride) {
-                localMaxs[local_id] = max(localMaxs[local_id], localMaxs[local_id + stride]);
-            }
-
-            group_size = group_size / 2;
-        }
-        else {
-            if (local_id < stride) {
-                localMaxs[local_id+1] = max(localMaxs[local_id + 1], localMaxs[local_id + 1 + stride]);
-            }
-            group_size = (group_size / 2) + 1;
-        }
-    }
-
-    barrier(CLK_GLOBAL_MEM_FENCE);
-    if (local_id == 0) {
-        maxGroups[group_id] = localMaxs[0];
-    }
-}
-
-__kernel void max_gpu_vec(__global double* maxGroups,
-                     __local double *localMaxs) {
-
-    uint global_id = get_global_id(0);
-    uint local_id = get_local_id(0);
-    uint group_size = get_local_size(0);
-    uint group_id = get_group_id(0);
-    uint num_groups = get_num_groups(0);
-
-    if (group_id == num_groups) {
-        group_size = get_global_size(0) - group_id*group_size;
-    }
-
-    localMaxs[local_id] = maxGroups[global_id];
-
-    while (group_size > 1) {
-        int stride = group_size / 2;
-        barrier(CLK_LOCAL_MEM_FENCE);
-        if (group_size % 2 == 0) {
-            if (local_id < stride) {
-                localMaxs[local_id] = max(localMaxs[local_id], localMaxs[local_id + stride]);
-            }
-
-            group_size = group_size / 2;
-        }
-        else {
-            if (local_id < stride) {
-                localMaxs[local_id+1] = max(localMaxs[local_id + 1], localMaxs[local_id + 1 + stride]);
-            }
-            group_size = (group_size / 2) + 1;
-        }
-    }
-
-    barrier(CLK_GLOBAL_MEM_FENCE);
-    if (local_id == 0) {
-        maxGroups[group_id] = localMaxs[0];
-    }
-}
-
-__kernel void log_sum_gpu_vec(__global double *input,
-                          __local double *localSums,
-                          __constant double *maxexp) {
-    uint global_id = get_global_id(0);
-    uint local_id = get_local_id(0);
-    uint group_size = get_local_size(0);
-    uint group_id = get_group_id(0);
-    uint num_groups = get_num_groups(0);
-
-    if (group_id == num_groups) {
-        group_size = get_global_size(0) - group_id*group_size;
-//        printf("global_id %d, global_size %d, local_id %d, group_id %d, num_groups %d, group_size %d, new_group_size %d",
-//                global_id, get_global_size(0), local_id, group_id, num_groups, get_local_size(0), group_size);
-    }
-
-    localSums[local_id] = exp(input[global_id]-maxexp[0]);
-
-    while (group_size > 1) {
-        int stride = group_size / 2;
-        barrier(CLK_LOCAL_MEM_FENCE);
-        if (group_size % 2 == 0) {
-            if (local_id < stride) {
-                localSums[local_id] += localSums[local_id + stride];
-            }
-
-            group_size = group_size / 2;
-        }
-        else {
-            if (local_id < stride) {
-                localSums[local_id+1] += localSums[local_id+1 + stride];
-            }
-            group_size = (group_size / 2) + 1;
-        }
-    }
-
-    barrier(CLK_GLOBAL_MEM_FENCE);
-    if (local_id == 0) {
-        input[group_id] = localSums[0];
-//        printf("input[%d] = %f", group_id, localSums[0]);
-    }
-}
-
-__kernel void debug_log_sum_gpu_vec(__global double *input,
-                                    __local double *localSums,
-                                    __private uint n,
-                                    __constant double *maxexp) {
-    uint global_id = get_global_id(0);
-    uint local_id = get_local_id(0);
-    uint group_size = get_local_size(0);
-    uint group_id = get_group_id(0);
-    uint num_groups = get_num_groups(0);
-
-
-//    printf("global_id %d, global_size %d, local_id %d, group_id %d, num_groups %d, group_size %d, new_group_size %d",
-//            global_id, get_global_size(0), local_id, group_id, num_groups, get_local_size(0), group_size);
 
     if (group_id == num_groups-1) {
         group_size = n - group_id*group_size;
-//        printf("global_id %d, global_size %d, local_id %d, group_id %d, num_groups %d, group_size %d, new_group_size %d",
-//                global_id, get_global_size(0), local_id, group_id, num_groups, get_local_size(0), group_size);
-    }
 
-    if (global_id < n) {
-        localSums[local_id] = exp(input[global_id]-maxexp[0]);
+        if (global_id < n) {
+            localMaxs[local_id] = input[global_id];
+        }
+    }
+    else {
+        localMaxs[local_id] = input[global_id];
     }
 
     while (group_size > 1) {
@@ -438,25 +302,66 @@ __kernel void debug_log_sum_gpu_vec(__global double *input,
         barrier(CLK_LOCAL_MEM_FENCE);
         if (group_size % 2 == 0) {
             if (local_id < stride) {
-                localSums[local_id] += localSums[local_id + stride];
+                localMaxs[local_id] = max(localMaxs[local_id], localMaxs[local_id + stride]);
             }
 
             group_size = group_size / 2;
         }
         else {
             if (local_id < stride) {
-                localSums[local_id+1] += localSums[local_id+1 + stride];
+                localMaxs[local_id+1] = max(localMaxs[local_id+1], localMaxs[local_id+1+stride]);
             }
             group_size = (group_size / 2) + 1;
         }
     }
 
-    barrier(CLK_GLOBAL_MEM_FENCE);
+    barrier(CLK_LOCAL_MEM_FENCE);
     if (local_id == 0) {
-        input[group_id] = localSums[0];
-        //        printf("input[%d] = %f", group_id, localSums[0]);
+        output[group_id] = localMaxs[0];
     }
 }
+
+__kernel void parallel_max_gpu_single_wg(__constant double *input,
+                                        __private uint n,
+                                        __local double *localMaxs,
+                                        __global double* output)
+{
+    uint global_id = get_global_id(0);
+    uint group_size = n;
+
+    localMaxs[global_id] = input[global_id];
+
+    while (group_size > 1) {
+        int stride = group_size / 2;
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if (group_size % 2 == 0) {
+            if (local_id < stride) {
+                localMaxs[global_id] = max(localMaxs[global_id], localMaxs[global_id + stride]);
+            }
+
+            group_size = group_size / 2;
+        }
+        else {
+            if (local_id < stride) {
+                localMaxs[global_id+1] = max(localMaxs[global_id+1], localMaxs[global_id+1 + stride]);
+            }
+            group_size = (group_size / 2) + 1;
+        }
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (global_id == 0) {
+        output[0] = localMaxs[0];
+    }
+}
+
+__kernel void logsumexp_coeffs(__global double *input,
+                               __constant double* max) {
+    uint idx = get_global_id(0);
+    input[idx] = exp(input[idx] - max[0])
+}
+
+
 
 __kernel void copy_logpdf_result(__constant double *logsum,
                                  __constant double *maxexp,
@@ -472,24 +377,23 @@ __kernel void copy_logpdf_result(__constant double *logsum,
 ##########################################
 */
 
-__kernel void logsumout_checkmax(__constant double *square_data,
-                                __global double *sol_vec,
+__kernel void logpdf_checkmax(__constant double *square_data,
                                 __global double *max_vec,
                                 __private uint n_col,
                                 __private double lognorm_factor) {
     uint r = get_global_id(0);
     uint idx = r * n_col;
 
-    sol_vec[r] = square_data[idx];
+    double s = square_data[idx];
     for (uint i = 1; i < n_col; i++) {
-        sol_vec[r] += square_data[idx + i];
+        s += square_data[idx + i];
     }
 
-    sol_vec[r] = (-0.5 * sol_vec[r]) - lognorm_factor;
-    max_vec[r] = max(max_vec[r], sol_vec[r]);
+    s = (-0.5 * s) - lognorm_factor;
+    max_vec[r] = max(max_vec[r], s);
 }
 
-__kernel void exp_and_sum(__constant double* logsum, __constant double* maxexp, __global double *res) {
+__kernel void expmax_and_sum(__constant double* logsum, __constant double* maxexp, __global double *res) {
     uint idx = get_global_id(0);
     res[idx] += exp(logsum[idx] - maxexp[idx]);
 }
@@ -507,12 +411,13 @@ __kernel void log_and_sum(__global double* res, __constant double* maxexp) {
 ##########################################
 */
 
-__kernel void logsumout_to_matrix(__constant double *square_data,
+__kernel void logpdf_mat(__constant double *square_data,
                                     __global double *sol_mat,
                                     __private uint n_col,
                                     __private uint sol_row,
                                     __private uint n_train_instances,
                                     __private double lognorm_factor) {
+
     uint r = n_train_instances*get_global_id(0) + sol_row;
     uint idx = get_global_id(0) * n_col;
 
@@ -524,75 +429,31 @@ __kernel void logsumout_to_matrix(__constant double *square_data,
     sol_mat[r] = (-0.5 * sol_mat[r]) - lognorm_factor;
 }
 
-__kernel void max_gpu_mat_copy(__constant double *input,
-                               __global double* maxGroups,
-                               __local double *localMaxs,
-                               __private uint array_n_cols) {
-
+__kernel void parallel_max_mat_gpu(__constant double *input,
+                                __private uint rows,
+                                __private uint cols,
+                                __local double *localMaxs,
+                                __global double* output)
+{
     uint global_id_row = get_global_id(0);
     uint global_id_col = get_global_id(1);
-    uint n_cols = get_global_size(1);
+
     uint local_id = get_local_id(1);
+
     uint group_size = get_local_size(1);
     uint group_id = get_group_id(1);
-//   FIXME: This code returns num_groups = 3 for global_size = 1000 and local_size = 256, so it does not work as expected
-//      when local_work_size does not evenly divide global_work_size.
-//    uint num_groups = get_num_groups(1);
+    uint num_groups = get_num_groups(1);
 
-    //This is equal to ceil(n_cols/group_size): https://stackoverflow.com/questions/2745074/fast-ceiling-of-an-integer-division-in-c-c
-    uint num_groups = (n_cols + group_size - 1) / group_size;
+    if (group_id == num_groups-1) {
+        group_size = cols - group_id*group_size;
 
-    if (group_id+1 == num_groups) {
-        group_size = get_global_size(1) - group_id*group_size;
-    }
-
-    localMaxs[local_id] = input[global_id_row*array_n_cols + global_id_col];
-
-    while (group_size > 1) {
-        int stride = group_size / 2;
-        barrier(CLK_LOCAL_MEM_FENCE);
-        if (group_size % 2 == 0) {
-            if (local_id < stride) {
-                localMaxs[local_id] = max(localMaxs[local_id], localMaxs[local_id+stride]);
-            }
-            group_size = group_size / 2;
-        }
-        else {
-            if (local_id < stride) {
-                localMaxs[local_id+1] = max(localMaxs[local_id+1], localMaxs[local_id+1+stride]);
-            }
-            group_size = (group_size / 2) + 1;
+        if (global_id_col < cols) {
+            localMaxs[local_id] = input[RM(global_id_row, global_id_col, cols)];
         }
     }
-
-    barrier(CLK_GLOBAL_MEM_FENCE);
-    if (local_id == 0) {
-        maxGroups[global_id_row*num_groups+group_id] = localMaxs[0];
+    else {
+        localMaxs[local_id] = input[RM(global_id_row, global_id_col, cols)];
     }
-}
-
-__kernel void max_gpu_mat(__global double* maxGroups,
-                          __local double *localMaxs,
-                          __private uint array_n_cols) {
-
-    uint global_id_row = get_global_id(0);
-    uint global_id_col = get_global_id(1);
-    uint n_cols = get_global_size(1);
-    uint local_id = get_local_id(1);
-    uint group_size = get_local_size(1);
-    uint group_id = get_group_id(1);
-//   FIXME: This code returns num_groups = 3 for global_size = 1000 and local_size = 256, so it does not work as expected
-//      when local_work_size does not evenly divide global_work_size.
-//    uint num_groups = get_num_groups(1);
-
-    //This is equal to ceil(n_cols/group_size): https://stackoverflow.com/questions/2745074/fast-ceiling-of-an-integer-division-in-c-c
-    uint num_groups = (n_cols + group_size - 1) / group_size;
-
-    if (group_id+1 == num_groups) {
-        group_size = get_global_size(1) - group_id*group_size;
-    }
-
-    localMaxs[local_id] = maxGroups[global_id_row*array_n_cols + global_id_col];
 
     while (group_size > 1) {
         int stride = group_size / 2;
@@ -606,25 +467,159 @@ __kernel void max_gpu_mat(__global double* maxGroups,
         }
         else {
             if (local_id < stride) {
-                localMaxs[local_id+1] = max(localMaxs[local_id+1 + stride], localMaxs[local_id+1]);
+                localMaxs[local_id+1] = max(localMaxs[local_id+1], localMaxs[local_id+1+stride]);
             }
+
             group_size = (group_size / 2) + 1;
         }
     }
 
-    barrier(CLK_GLOBAL_MEM_FENCE);
+    barrier(CLK_LOCAL_MEM_FENCE);
     if (local_id == 0) {
-        maxGroups[global_id_row*array_n_cols + group_id] = localMaxs[0];
+        output[RM(global_id_row, group_id, num_groups)] = localMaxs[0];
     }
 }
 
 
-__kernel void exp_and_sum_mat(__global double* res, __constant double* maxexp, __private uint n, __private uint num_groups) {
-    uint i = get_global_id(0);
-    uint row = i / n;
-    uint col = i % n;
-    uint d = RM(row, col, n);
-    res[d] = exp(res[d] - maxexp[row*num_groups]);
+__kernel void parallel_max_mat_gpu_single_wg(__constant double *input,
+        __private uint rows,
+        __private uint cols,
+        __local double *localMaxs,
+        __global double* output)
+{
+    uint global_id_row = get_global_id(0);
+    uint global_id_col = get_global_id(1);
+
+    uint group_size = cols;
+
+    localMaxs[global_id_col] = input[RM(global_id_row, global_id_col, cols)];
+
+    while (group_size > 1) {
+        int stride = group_size / 2;
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if (group_size % 2 == 0) {
+            if (local_id < stride) {
+                localMaxs[global_id_col] = max(localMaxs[global_id_col],
+                                                localMaxs[global_id_col + stride]);
+            }
+
+            group_size = group_size / 2;
+        }
+        else {
+            if (local_id < stride) {
+                localMaxs[global_id_col+1] = max(localMaxs[global_id_col+1],
+                                                localMaxs[global_id_col+1+stride]);
+            }
+
+            group_size = (group_size / 2) + 1;
+        }
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (global_id_col == 0) {
+        output[global_id_row] = localMaxs[0];
+    }
+}
+
+__kernel void parallel_sum_mat_gpu(__constant double *input,
+        __private uint rows,
+        __private uint cols,
+        __local double *localSums,
+        __global double* output)
+{
+    uint global_id_row = get_global_id(0);
+    uint global_id_col = get_global_id(1);
+
+    uint local_id = get_local_id(1);
+
+    uint group_size = get_local_size(1);
+    uint group_id = get_group_id(1);
+    uint num_groups = get_num_groups(1);
+
+    if (group_id == num_groups-1) {
+        group_size = cols - group_id*group_size;
+
+        if (global_id_col < cols) {
+            localSums[local_id] = input[RM(global_id_row, global_id_col, cols)];
+        }
+    }
+    else {
+        localSums[local_id] = input[RM(global_id_row, global_id_col, cols)];
+    }
+
+    while (group_size > 1) {
+        int stride = group_size / 2;
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if (group_size % 2 == 0) {
+            if (local_id < stride) {
+                localSums[local_id] += localSums[local_id + stride];
+            }
+
+            group_size = group_size / 2;
+        }
+        else {
+            if (local_id < stride) {
+                localSums[local_id+1] += localSums[local_id+1+stride];
+            }
+
+            group_size = (group_size / 2) + 1;
+        }
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (local_id == 0) {
+        output[RM(global_id_row, group_id, num_groups)] = localSums[0];
+    }
+}
+
+
+__kernel void parallel_sum_mat_gpu_single_wg(__constant double *input,
+        __private uint rows,
+        __private uint cols,
+        __local double *localSums,
+        __global double* output,
+        __private uint output_leading
+)
+{
+    uint global_id_row = get_global_id(0);
+    uint global_id_col = get_global_id(1);
+
+    uint group_size = cols;
+
+    localSums[global_id_col] = input[RM(global_id_row, global_id_col, cols)];
+
+    while (group_size > 1) {
+        int stride = group_size / 2;
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if (group_size % 2 == 0) {
+            if (local_id < stride) {
+                localSums[global_id_col] += localSums[global_id_col + stride];
+            }
+
+            group_size = group_size / 2;
+        }
+        else {
+            if (local_id < stride) {
+                localSums[global_id_col+1] += localSums[global_id_col+1+stride]);
+            }
+
+            group_size = (group_size / 2) + 1;
+        }
+    }
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+    if (global_id_col == 0) {
+        output[RM(global_id_row, 0, output_leading)] = localSums[0];
+    }
+}
+
+__kernel void expmax_mat(__global double* res,
+                            __constant double* max_buffer,
+                            __private uint n_cols) {
+    uint idx = get_global_id(0);
+    uint row = idx / n_cols;
+
+    res[idx] = exp(res[idx] - maxexp[row]);
 }
 
 __kernel void sum_gpu_mat(__global double* maxGroups,
@@ -674,13 +669,13 @@ __kernel void sum_gpu_mat(__global double* maxGroups,
     }
 }
 
-__kernel void log_and_sum_mat(__global double* res,
+__kernel void log_and_sum_mat(__global double* output,
                                 __constant double *summed_mat,
                                 __constant double* maxexp,
-                                __private uint n_col,
-                                __private uint num_groups) {
+                                __private uint leading_summed
+) {
     uint idx = get_global_id(0);
-    res[idx] = log(summed_mat[idx*n_col]) + maxexp[idx*num_groups];
+    res[idx] = log(summed_mat[idx*leading_summed]) + maxexp[idx];
 }
 
 /**
@@ -689,9 +684,9 @@ __kernel void log_and_sum_mat(__global double* res,
 ##########################################
 */
 
-#line 633
+#line 628
 
-#line 638
+#line 633
 
 __kernel void substract_without_origin_rowmajor_rowmajor(__constant double *train_data,
                                                                 __private uint train_leading_dimension,
@@ -711,7 +706,7 @@ __kernel void substract_without_origin_rowmajor_rowmajor(__constant double *trai
 }
 
 
-#line 638
+#line 633
 
 __kernel void substract_without_origin_rowmajor_columnmajor(__constant double *train_data,
                                                                 __private uint train_leading_dimension,
@@ -733,9 +728,9 @@ __kernel void substract_without_origin_rowmajor_columnmajor(__constant double *t
 
 
 
-#line 633
+#line 628
 
-#line 638
+#line 633
 
 __kernel void substract_without_origin_columnmajor_rowmajor(__constant double *train_data,
                                                                 __private uint train_leading_dimension,
@@ -755,7 +750,7 @@ __kernel void substract_without_origin_columnmajor_rowmajor(__constant double *t
 }
 
 
-#line 638
+#line 633
 
 __kernel void substract_without_origin_columnmajor_columnmajor(__constant double *train_data,
                                                                 __private uint train_leading_dimension,
@@ -1086,7 +1081,7 @@ __kernel void onlykde_exponent_coefficients_iterate_train_low_memory_compute(__g
 ##########################################
 */
 
-#line 972
+#line 967
 
 __kernel void s1_and_s3_sum_parents_rowmajor(__constant double* test_dataset,
                                         __private uint leading_dimension,
@@ -1130,7 +1125,7 @@ __kernel void s1_and_s3_sum_constant_rowmajor(__constant double* test_dataset,
 }
 
 
-#line 972
+#line 967
 
 __kernel void s1_and_s3_sum_parents_columnmajor(__constant double* test_dataset,
                                         __private uint leading_dimension,
@@ -1175,13 +1170,13 @@ __kernel void s1_and_s3_sum_constant_columnmajor(__constant double* test_dataset
 
 
 
-#line 1020
-__kernel void onlygaussian_exponent_coefficients_iterate_test_rowmajor(__global double* training_dataset,
+#line 1015
+__kernel void onlygaussian_exponent_coefficients_iterate_test_rowmajor(__constant double* training_dataset,
                                              __private uint train_leading_dimension,
-                                             __global double* precision,
-                                             __global double* s1,
+                                            __constant double* precision,
+                                            __constant double* s1,
                                              __private double inv_a,
-                                             __global double* s3,
+                                             __constant double* s3,
                                              __private uint test_index,
                                              __global double* train_coefficients
                                              )
@@ -1195,12 +1190,12 @@ __kernel void onlygaussian_exponent_coefficients_iterate_test_rowmajor(__global 
     train_coefficients[i] = diff_numerator*diff_numerator*inv_a - 0.5*instanceK*instanceK*precisionK - 0.5*s3[test_index];
 }
 
-__kernel void onlygaussian_exponent_coefficients_iterate_train_high_memory_rowmajor(__global double* training_dataset,
+__kernel void onlygaussian_exponent_coefficients_iterate_train_high_memory_rowmajor(__constant double* training_dataset,
                                                                         __private uint train_leading_dimension,
-                                                                        __global double* precision,
-                                                                        __global double* s1,
+                                                                        __constant double* precision,
+                                                                        __constant double* s1,
                                                                         __private double inv_a,
-                                                                        __global double* s3,
+                                                                        __constant double* s3,
                                                                         __global double* train_coefficients,
                                                                         __private uint n
 )
@@ -1219,12 +1214,12 @@ __kernel void onlygaussian_exponent_coefficients_iterate_train_high_memory_rowma
 }
 
 
-__kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_checkmax_rowmajor(__global double* training_dataset,
+__kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_checkmax_rowmajor(__constant double* training_dataset,
                                                                 __private uint train_leading_dimension,
-                                                                __global double* precision,
-                                                                __global double* s1,
+                                                                __constant double* precision,
+                                                                __constant double* s1,
                                                                 __private double inv_a,
-                                                                __global double* s3,
+                                                                __constant double* s3,
                                                                 __private uint train_index,
                                                                 __global double* max_array
 )
@@ -1240,14 +1235,14 @@ __kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_checkm
     max_array[i] = max(max_array[i], coeff);
 }
 
-__kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_compute_rowmajor(__global double* training_dataset,
+__kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_compute_rowmajor(__constant double* training_dataset,
                                                                 __private uint train_leading_dimension,
-                                                                __global double* precision,
-                                                                __global double* s1,
+                                                                __constant double* precision,
+                                                                __constant double* s1,
                                                                 __private double inv_a,
-                                                                __global double* s3,
+                                                                __constant double* s3,
                                                                 __private uint train_index,
-                                                                __global double* max_array,
+                                                                __constant double* max_array,
                                                                 __global double* final_result
 )
 {
@@ -1262,13 +1257,13 @@ __kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_comput
 }
 
 
-#line 1020
-__kernel void onlygaussian_exponent_coefficients_iterate_test_columnmajor(__global double* training_dataset,
+#line 1015
+__kernel void onlygaussian_exponent_coefficients_iterate_test_columnmajor(__constant double* training_dataset,
                                              __private uint train_leading_dimension,
-                                             __global double* precision,
-                                             __global double* s1,
+                                            __constant double* precision,
+                                            __constant double* s1,
                                              __private double inv_a,
-                                             __global double* s3,
+                                             __constant double* s3,
                                              __private uint test_index,
                                              __global double* train_coefficients
                                              )
@@ -1282,12 +1277,12 @@ __kernel void onlygaussian_exponent_coefficients_iterate_test_columnmajor(__glob
     train_coefficients[i] = diff_numerator*diff_numerator*inv_a - 0.5*instanceK*instanceK*precisionK - 0.5*s3[test_index];
 }
 
-__kernel void onlygaussian_exponent_coefficients_iterate_train_high_memory_columnmajor(__global double* training_dataset,
+__kernel void onlygaussian_exponent_coefficients_iterate_train_high_memory_columnmajor(__constant double* training_dataset,
                                                                         __private uint train_leading_dimension,
-                                                                        __global double* precision,
-                                                                        __global double* s1,
+                                                                        __constant double* precision,
+                                                                        __constant double* s1,
                                                                         __private double inv_a,
-                                                                        __global double* s3,
+                                                                        __constant double* s3,
                                                                         __global double* train_coefficients,
                                                                         __private uint n
 )
@@ -1306,12 +1301,12 @@ __kernel void onlygaussian_exponent_coefficients_iterate_train_high_memory_colum
 }
 
 
-__kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_checkmax_columnmajor(__global double* training_dataset,
+__kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_checkmax_columnmajor(__constant double* training_dataset,
                                                                 __private uint train_leading_dimension,
-                                                                __global double* precision,
-                                                                __global double* s1,
+                                                                __constant double* precision,
+                                                                __constant double* s1,
                                                                 __private double inv_a,
-                                                                __global double* s3,
+                                                                __constant double* s3,
                                                                 __private uint train_index,
                                                                 __global double* max_array
 )
@@ -1327,14 +1322,14 @@ __kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_checkm
     max_array[i] = max(max_array[i], coeff);
 }
 
-__kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_compute_columnmajor(__global double* training_dataset,
+__kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_compute_columnmajor(__constant double* training_dataset,
                                                                 __private uint train_leading_dimension,
-                                                                __global double* precision,
-                                                                __global double* s1,
+                                                                __constant double* precision,
+                                                                __constant double* s1,
                                                                 __private double inv_a,
-                                                                __global double* s3,
+                                                                __constant double* s3,
                                                                 __private uint train_index,
-                                                                __global double* max_array,
+                                                                __constant double* max_array,
                                                                 __global double* final_result
 )
 {
@@ -1357,9 +1352,9 @@ __kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_comput
 ##########################################
 */
 
-#line 1118
+#line 1113
 
-#line 1123
+#line 1118
 
 __kernel void substract_without_origin_from_indices_iterate_test_rowmajor_rowmajor(__constant double *train_data,
                                                             __private uint train_leading_dimension,
@@ -1380,7 +1375,7 @@ __kernel void substract_without_origin_from_indices_iterate_test_rowmajor_rowmaj
 }
 
 
-#line 1123
+#line 1118
 
 __kernel void substract_without_origin_from_indices_iterate_test_rowmajor_columnmajor(__constant double *train_data,
                                                             __private uint train_leading_dimension,
@@ -1403,9 +1398,9 @@ __kernel void substract_without_origin_from_indices_iterate_test_rowmajor_column
 
 
 
-#line 1118
+#line 1113
 
-#line 1123
+#line 1118
 
 __kernel void substract_without_origin_from_indices_iterate_test_columnmajor_rowmajor(__constant double *train_data,
                                                             __private uint train_leading_dimension,
@@ -1426,7 +1421,7 @@ __kernel void substract_without_origin_from_indices_iterate_test_columnmajor_row
 }
 
 
-#line 1123
+#line 1118
 
 __kernel void substract_without_origin_from_indices_iterate_test_columnmajor_columnmajor(__constant double *train_data,
                                                             __private uint train_leading_dimension,
@@ -1450,9 +1445,9 @@ __kernel void substract_without_origin_from_indices_iterate_test_columnmajor_col
 
 
 
-#line 1150
+#line 1145
 
-#line 1155
+#line 1150
 
 __kernel void substract_without_origin_from_indices_iterate_train_rowmajor_rowmajor(__constant double *train_data,
         __private uint train_leading_dimension,
@@ -1473,7 +1468,7 @@ __kernel void substract_without_origin_from_indices_iterate_train_rowmajor_rowma
 }
 
 
-#line 1155
+#line 1150
 
 __kernel void substract_without_origin_from_indices_iterate_train_rowmajor_columnmajor(__constant double *train_data,
         __private uint train_leading_dimension,
@@ -1496,9 +1491,9 @@ __kernel void substract_without_origin_from_indices_iterate_train_rowmajor_colum
 
 
 
-#line 1150
+#line 1145
 
-#line 1155
+#line 1150
 
 __kernel void substract_without_origin_from_indices_iterate_train_columnmajor_rowmajor(__constant double *train_data,
         __private uint train_leading_dimension,
@@ -1519,7 +1514,7 @@ __kernel void substract_without_origin_from_indices_iterate_train_columnmajor_ro
 }
 
 
-#line 1155
+#line 1150
 
 __kernel void substract_without_origin_from_indices_iterate_train_columnmajor_columnmajor(__constant double *train_data,
         __private uint train_leading_dimension,
@@ -1665,7 +1660,7 @@ __kernel void dotproduct(__constant double *Ti,
     }
 }
 
-#line 1304
+#line 1299
 
 __kernel void exponent_coefficients_iterate_test_rowmajor(__constant double *train_data,
                                                 __private uint train_leading_dimension,
@@ -1693,7 +1688,7 @@ __kernel void exponent_coefficients_iterate_test_rowmajor(__constant double *tra
 }
 
 
-#line 1304
+#line 1299
 
 __kernel void exponent_coefficients_iterate_test_columnmajor(__constant double *train_data,
                                                 __private uint train_leading_dimension,
@@ -1722,7 +1717,7 @@ __kernel void exponent_coefficients_iterate_test_columnmajor(__constant double *
 
 
 
-#line 1336
+#line 1331
 
 __kernel void exponent_coefficients_iterate_train_high_memory_rowmajor(__constant double *train_data,
                                         __private uint train_leading_dimension,
@@ -1755,7 +1750,7 @@ __kernel void exponent_coefficients_iterate_train_high_memory_rowmajor(__constan
 }
 
 
-#line 1336
+#line 1331
 
 __kernel void exponent_coefficients_iterate_train_high_memory_columnmajor(__constant double *train_data,
                                         __private uint train_leading_dimension,
@@ -1789,7 +1784,7 @@ __kernel void exponent_coefficients_iterate_train_high_memory_columnmajor(__cons
 
 
 
-#line 1373
+#line 1368
 
 __kernel void exponent_coefficients_iterate_train_low_memory_checkmax_rowmajor(__constant double *train_data,
                                         __private uint train_leading_dimension,
@@ -1817,7 +1812,7 @@ __kernel void exponent_coefficients_iterate_train_low_memory_checkmax_rowmajor(_
 }
 
 
-#line 1373
+#line 1368
 
 __kernel void exponent_coefficients_iterate_train_low_memory_checkmax_columnmajor(__constant double *train_data,
                                         __private uint train_leading_dimension,
@@ -1846,7 +1841,7 @@ __kernel void exponent_coefficients_iterate_train_low_memory_checkmax_columnmajo
 
 
 
-#line 1405
+#line 1400
 
 __kernel void exponent_coefficients_iterate_train_low_memory_compute_rowmajor(__constant double *train_data,
                                         __private uint train_leading_dimension,
@@ -1875,7 +1870,7 @@ __kernel void exponent_coefficients_iterate_train_low_memory_compute_rowmajor(__
 }
 
 
-#line 1405
+#line 1400
 
 __kernel void exponent_coefficients_iterate_train_low_memory_compute_columnmajor(__constant double *train_data,
                                         __private uint train_leading_dimension,

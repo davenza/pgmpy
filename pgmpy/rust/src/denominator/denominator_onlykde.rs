@@ -88,7 +88,7 @@ unsafe fn logdenominator_iterate_test_onlykde(
         copy_buffers!(pro_que, error, test_slice);
 
     let (ti_buffer, final_result_buffer, coeffs, max_coefficients) =
-        empty_buffers!(pro_que, error, f64, n * nparents_kde, m, n, num_groups);
+        empty_buffers!(pro_que, error, f64, n * nparents_kde, m, n, 1);
 
     let (test_rowmajor, test_leading_dimension) = is_rowmajor(x);
 
@@ -117,7 +117,15 @@ unsafe fn logdenominator_iterate_test_onlykde(
         .build()
         .expect("Kernel onlykde_exponent_coefficients_iterate_test build failed.");
 
-    let kernel_log_sum_gpu = pro_que
+    let kernel_logsumexp_coeffs = pro_que
+        .kernel_builder("logsumexp_coeffs")
+        .global_work_size(n)
+        .arg(&coeffs)
+        .arg(&max_coefficients)
+        .build()
+        .expect("Kernel logsumexp_coeffs build failed.");
+
+    let kernel_copy_logpdf = pro_que
         .kernel_builder("copy_logpdf_result")
         .global_work_size(1)
         .arg(&coeffs)
@@ -126,6 +134,8 @@ unsafe fn logdenominator_iterate_test_onlykde(
         .arg_named("offset", &0u32)
         .build()
         .expect("Kernel copy_logpdf_result build failed.");
+
+    let tmp_reduc_buffers = create_reduction_buffers_gpu_vec(pro, error, n, max_work_size, num_groups);
 
     for i in 0..m {
         kernel_substract.set_arg("row", i as u32).unwrap();
@@ -140,25 +150,21 @@ unsafe fn logdenominator_iterate_test_onlykde(
         max_gpu_vec_copy(
             pro_que,
             &coeffs,
+            &tmp_reduc_buffers,
             &max_coefficients,
-            n,
             max_work_size,
             local_work_size,
             num_groups,
         );
 
-        log_sum_gpu_vec(
-            &pro_que,
-            &coeffs,
-            &max_coefficients,
-            n,
-            max_work_size,
-            local_work_size,
-            num_groups,
-        );
+        kernel_logsumexp_coeffs
+            .enq()
+            .expect("Error while executing logsumexp_coeffs kernel.");
 
-        kernel_log_sum_gpu.set_arg("offset", i as u32).unwrap();
-        kernel_log_sum_gpu
+        sum_gpu_vec(&pro_que, &coeffs, &tmp_reduc_buffers, max_work_size, local_work_size, num_groups);
+
+        kernel_copy_logpdf.set_arg("offset", i as u32).unwrap();
+        kernel_copy_logpdf
             .enq()
             .expect("Error while executing copy_logpdf_result kernel.");
 
