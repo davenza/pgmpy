@@ -344,6 +344,21 @@ class CKDE_CPD(BaseFactor):
 
         return logpdf
 
+
+    def debug_logpdf_dataset(self, dataset):
+        test_dataset = dataset.loc[:, [self.variable] + self.kde_evidence].to_numpy()
+
+        kde_logpdf = self.kde_logpdf(dataset.loc[:,[self.variable] + self.kde_evidence])
+
+
+        gaussian_logpdf = np.zeros((len(dataset,)))
+        for i, gaussian_cpd in enumerate(self.gaussian_cpds):
+            gaussian_logpdf += gaussian_cpd.logpdf_dataset(dataset)
+
+        den_logpdf = self._logdenominator_dataset(dataset.loc[:, [self.variable] + self.evidence])
+
+        return kde_logpdf, gaussian_logpdf, den_logpdf
+
     def _logdenominator_dataset(self, dataset):
         # if self.n_kde == 0 and self.n_gaussian == 0:
         #     return 0

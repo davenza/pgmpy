@@ -37,7 +37,8 @@
 ///     let (buffer1, buffer2) = copy_buffers!(pro_que, error_ptr, vec, vec2 => true);
 ///  }
 /// ```
-///
+
+
 #[macro_export]
 macro_rules! copy_buffers {
     ($pro_que:expr, $error:expr, $($slice:expr),+) => {
@@ -220,6 +221,51 @@ macro_rules! to_cpu_single {
             vec
         }
     };
+}
+
+#[macro_export]
+macro_rules! equal_slices {
+    ($slice1:expr, $slice2:expr) => {
+        {
+            if $slice1.len() != $slice2.len() {
+                println!("BUG! The two slices have different length");
+                false
+            }
+            else {
+                let mut ret = true;
+                let m : F64Margin = F64Margin::zero().epsilon(0.00005).ulps(std::i64::MAX);
+                for (s1, s2) in $slice1.iter().zip($slice2.iter()) {
+                    if !(*s1).approx_eq(*s2, m) {
+                        println!("{} != {}", *s1, *s2);
+                        ret = false;
+                    }
+                }
+                ret
+            }
+        }
+    };
+
+    ($slice1:expr, $slice2:expr, $n:expr) => {
+        {
+            if $slice1.len() != $slice2.len() {
+                println!("BUG! The two slices have different length");
+                false
+            }
+            else {
+                let mut ret = true;
+                let m : F64Margin = F64Margin::zero().epsilon(0.00005).ulps(std::i64::MAX);
+                for (s1, s2) in $slice1[..$n].iter().zip($slice2[..$n].iter()) {
+                    if !(*s1).approx_eq(*s2, m) {
+                        println!("{} != {}", *s1, *s2);
+                        ret = false;
+                    }
+                }
+                ret
+            }
+        }
+    };
+
+
 }
 
 

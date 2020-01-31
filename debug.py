@@ -271,24 +271,19 @@ if __name__ == '__main__':
     # print("train dataset = " + str(len(train_dataset)))
     vl = ValidationLikelihood(train_dataset, k=2, seed=0)
 
-    a = vl.debug_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN})
+    k, g, d = vl.debug_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN})
 
     i = 0
     while True:
         i += 1
+        print("\r{}".format(i), end='')
         vl2 = ValidationLikelihood(train_dataset, k=2, seed=0)
 
-        b = vl2.debug_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN}, expected_values=a)
+        k2, g2, d2 = vl2.debug_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN}, expected_values=(k, g, d))
 
-        if np.any(~np.isclose(a, b)):
-            different_indices = np.where(~np.isclose(a, b))
-            print("different_indices = " + str(different_indices))
-            print("a values = " + str(a[different_indices]) + ", i = " + str(i))
-            print("b values = " + str(b[different_indices]) + ", i = " + str(i))
-
-            c = vl2.debug_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN}, expected_values=a)
-
-            print("c values = " + str(c[different_indices]) + ", i = " + str(i))
+        if np.any(~np.isclose(k, k2)) or np.any(~np.isclose(g, g2)) or np.any(~np.isclose(d, d2)):
+            import os
+            os.system('play -nq -t alsa synth {} sine {}'.format(1, 400))
 
     # np = vl.local_score('Nzeros', [], NodeType.CKDE, {})
     # p = vl.local_score('Nzeros', ['ASTV'], NodeType.CKDE, {'ASTV': NodeType.GAUSSIAN})

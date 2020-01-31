@@ -77,20 +77,42 @@ class ValidationLikelihood(StructureScore):
 
         test_data = node_data.iloc[test_indices,:]
 
-
-        score = cpd.logpdf_dataset(test_data)
+        kde_score, gaussian_score, den_score = cpd.debug_logpdf_dataset(test_data)
         if expected_values is not None:
-            if np.any(~np.isclose(score, expected_values)):
-                fail_indices = np.where(~np.isclose(score, expected_values))
-                print("Fail indices")
-                print("score = " + str(score[fail_indices]))
-                score2 = cpd.logpdf_dataset(test_data)
+            exp_kde_score, exp_gaussian_score, exp_den_score = expected_values
+
+            if np.any(~np.isclose(kde_score, exp_kde_score)):
+                fail_indices = np.where(~np.isclose(kde_score, exp_kde_score))
+                print("Fail kde scores")
+                print("Indices " + str(fail_indices))
+                print("score = " + str(kde_score[fail_indices]))
+                score2, _ , _ = cpd.debug_logpdf_dataset(test_data)
                 print("score2 = " + str(score2[fail_indices]))
-                score3 = cpd.logpdf_dataset(test_data)
+                score3, _, _ = cpd.debug_logpdf_dataset(test_data)
                 print("score3 = " + str(score3[fail_indices]))
 
+            if np.any(~np.isclose(gaussian_score, exp_gaussian_score)):
+                fail_indices = np.where(~np.isclose(gaussian_score, exp_gaussian_score))
+                print("Fail gaussian scores")
+                print("Indices " + str(fail_indices))
+                print("score = " + str(gaussian_score[fail_indices]))
+                _, score2, _ = cpd.debug_logpdf_dataset(test_data)
+                print("score2 = " + str(score2[fail_indices]))
+                _, score3, _ = cpd.debug_logpdf_dataset(test_data)
+                print("score3 = " + str(score3[fail_indices]))
 
-        return score
+            if np.any(~np.isclose(den_score, exp_den_score)):
+                fail_indices = np.where(~np.isclose(den_score, exp_den_score))
+                print("Fail denominator scores")
+                print("Indices " + str(fail_indices))
+                print("score = " + str(den_score[fail_indices]))
+                _, _, score2 = cpd.debug_logpdf_dataset(test_data)
+                print("score2 = " + str(score2[fail_indices]))
+                _, _, score3 = cpd.debug_logpdf_dataset(test_data)
+                print("score3 = " + str(score3[fail_indices]))
+
+        return kde_score, gaussian_score, den_score
+
 
     def validation_local_score(self, variable, parents, variable_type, parent_types):
         parents = list(parents)
