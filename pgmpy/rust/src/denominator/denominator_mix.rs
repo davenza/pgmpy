@@ -1,6 +1,6 @@
 use crate::{empty_buffers, copy_buffers, Error, DoubleNumpyArray, buffer_fill_value,
-            get_max_work_size, is_rowmajor, max_gpu_vec_copy, log_sum_gpu_vec, max_gpu_mat,
-            sum_gpu_mat};
+            get_max_work_size, is_rowmajor, max_gpu_vec_copy, max_gpu_mat, sum_gpu_vec,
+            sum_gpu_mat, create_reduction_buffers_gpu_vec, create_reduction_buffers_gpu_mat};
 
 use crate::denominator::{CKDE, s1_s3_coefficients, s2};
 
@@ -82,7 +82,6 @@ pub unsafe extern "C" fn logdenominator_dataset(
     result: *mut c_double,
     error: *mut Error,
 ) {
-//    println!("\t[RUST] logdenominator_gaussian_mix {:p}", ckde);
     *error = Error::NotFinished;
     let mut ckde = Box::from_raw(ckde);
     let mut pro_que = Box::from_raw(pro_que);
@@ -124,11 +123,15 @@ unsafe fn logdenominator_iterate_test(
 
     let (s1, s3, final_result_buffer, mahalanobis_buffer, dotproduct_buffer, ti_buffer,
         max_coefficients) =
-        empty_buffers!(pro_que, error, f64, m, m, m, n, n, n*nparents_kde, num_groups);
+        empty_buffers!(pro_que, error, f64, m, m, m, n, n, n*nparents_kde, 1);
 
     let a = 0.5 * (ckde.precision_variable + s2(ckde));
 
     let (test_rowmajor, test_leading_dimension) = is_rowmajor(x);
+
+    let tmp_reduc_buffers = create_reduction_buffers_gpu_vec(pro_que, error, n, max_work_size);
+
+    if *error == Error::MemoryError { return; };
 
     s1_s3_coefficients(
         ckde,
@@ -194,7 +197,15 @@ unsafe fn logdenominator_iterate_test(
         .build()
         .expect("Kernel exponent_coefficients_iterate_test build failed.");
 
-    let kernel_log_sum_gpu = pro_que
+    let kernel_logsumexp_coeffs = pro_que
+        .kernel_builder("logsumexp_coeffs")
+        .global_work_size(n)
+        .arg(&mahalanobis_buffer)
+        .arg(&max_coefficients)
+        .build()
+        .expect("Kernel logsumexp_coeffs build failed.");
+
+    let kernel_copy_logpdf = pro_que
         .kernel_builder("copy_logpdf_result")
         .global_work_size(1)
         .arg(&mahalanobis_buffer)
@@ -226,25 +237,23 @@ unsafe fn logdenominator_iterate_test(
         max_gpu_vec_copy(
             pro_que,
             &mahalanobis_buffer,
+            &tmp_reduc_buffers,
             &max_coefficients,
-            n,
             max_work_size,
             local_work_size,
             num_groups,
         );
 
-        log_sum_gpu_vec(
-            &pro_que,
-            &mahalanobis_buffer,
-            &max_coefficients,
-            n,
-            max_work_size,
-            local_work_size,
-            num_groups,
-        );
+        kernel_logsumexp_coeffs
+            .enq()
+            .expect("Error while executing logsumexp_coeffs kernel.");
 
-        kernel_log_sum_gpu.set_arg("offset", i as u32).unwrap();
-        kernel_log_sum_gpu
+        sum_gpu_vec(&pro_que, &mahalanobis_buffer, &tmp_reduc_buffers, max_work_size,
+                    local_work_size, num_groups);
+
+
+        kernel_copy_logpdf.set_arg("offset", i as u32).unwrap();
+        kernel_copy_logpdf
             .enq()
             .expect("Error while executing copy_logpdf_result kernel.");
     }
@@ -512,11 +521,16 @@ unsafe fn logdenominator_iterate_train_high_memory(
     let (test_instances_buffer,) = copy_buffers!(pro_que, error, test_slice);
 
     let (s1, s3, final_result_buffer, ti_buffer, dotproduct_buffer, max_buffer) =
-        empty_buffers!(pro_que, error, f64, m, m, m, m*nparents_kde, m, m * num_groups);
+        empty_buffers!(pro_que, error, f64, m, m, m, m*nparents_kde, m, m);
 
     let a = 0.5 * (ckde.precision_variable + s2(ckde));
 
     let (test_rowmajor, test_leading_dimension) = is_rowmajor(x);
+
+    let tmp_reduc_buffers = create_reduction_buffers_gpu_mat(pro_que, error, m, n,
+                                                                 max_work_size);
+
+    if *error == Error::MemoryError { return; };
 
     s1_s3_coefficients(
         ckde,
@@ -585,15 +599,14 @@ unsafe fn logdenominator_iterate_train_high_memory(
         .build()
         .expect("Kernel exponent_coefficients_iterate_train_high_memory build failed.");
 
-    let kernel_exp_and_sum_mat = pro_que
-        .kernel_builder("exp_and_sum_mat")
+    let kernel_expmax_mat = pro_que
+        .kernel_builder("expmax_mat")
         .global_work_size(m * n)
         .arg(coeffs)
         .arg(&max_buffer)
         .arg(n as u32)
-        .arg(num_groups as u32)
         .build()
-        .expect("Kernel exp_and_sum_mat build failed.");
+        .expect("Kernel expmax_mat build failed.");
 
     let kernel_log_and_sum = pro_que
         .kernel_builder("log_and_sum_mat")
@@ -602,7 +615,6 @@ unsafe fn logdenominator_iterate_train_high_memory(
         .arg(coeffs)
         .arg(&max_buffer)
         .arg(n as u32)
-        .arg(num_groups as u32)
         .build()
         .expect("Kernel log_and_sum_mat build failed.");
 
@@ -611,27 +623,24 @@ unsafe fn logdenominator_iterate_train_high_memory(
         kernel_substract
             .enq()
             .expect("Error while executing substract_without_origin_from_indices kernel.");
-
-
         kernel_mahalanobis.set_arg("offset", i as u32).unwrap();
         kernel_mahalanobis
             .enq()
             .expect("Error while executing mahalanobis_mat kernel.");
-
         kernel_dotproduct
             .enq()
             .expect("Error while executing dotproduct kernel.");
-
         kernel_coefficients.set_arg("offset", i as u32).unwrap();
         kernel_coefficients
             .enq()
-            .expect("Error while executing exponent_coefficients_iterate_train_high_memory kernel.");
-
+            .expect("Error while executing exponent_coefficients_iterate_train_high_memory kernel."
+            );
     }
 
     max_gpu_mat(
         &pro_que,
         coeffs,
+        &tmp_reduc_buffers,
         &max_buffer,
         m,
         n,
@@ -640,13 +649,14 @@ unsafe fn logdenominator_iterate_train_high_memory(
         num_groups,
     );
 
-    kernel_exp_and_sum_mat
+    kernel_expmax_mat
         .enq()
-        .expect("Error while executing exp_and_sum_mat kernel.");
+        .expect("Error while executing expmax_mat kernel.");
 
     sum_gpu_mat(
         &pro_que,
         coeffs,
+        &tmp_reduc_buffers,
         m,
         n,
         max_work_size,
@@ -656,7 +666,7 @@ unsafe fn logdenominator_iterate_train_high_memory(
 
     kernel_log_and_sum
         .enq()
-        .expect("Error while executing kernel_log_and_sum kernel.");
+        .expect("Error while executing log_and_sum_mat kernel.");
 
     let kernel_sum_constant = pro_que
         .kernel_builder("sum_constant")

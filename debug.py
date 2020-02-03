@@ -89,14 +89,16 @@ def test_ckde_results(variable, evidence, node_type):
     print()
 
 def iterate_train_low_memory(evidence, node_type, variable):
-    if not evidence:
-        ckde_fun = CKDE_CPD._logdenominator_dataset
-    elif all([node_type[e] == NodeType.GAUSSIAN for e in evidence]):
-        ckde_fun = CKDE_CPD._logdenominator_dataset_onlygaussian
-    elif all([node_type[e] == NodeType.CKDE for e in evidence]):
-        ckde_fun = CKDE_CPD._logdenominator_dataset_onlykde
-    else:
-        ckde_fun = CKDE_CPD._logdenominator_dataset_mix
+    # if not evidence:
+    #     ckde_fun = CKDE_CPD._logdenominator_dataset
+    # elif all([node_type[e] == NodeType.GAUSSIAN for e in evidence]):
+    #     ckde_fun = CKDE_CPD._logdenominator_dataset_onlygaussian
+    # elif all([node_type[e] == NodeType.CKDE for e in evidence]):
+    #     ckde_fun = CKDE_CPD._logdenominator_dataset_onlykde
+    # else:
+    #     ckde_fun = CKDE_CPD._logdenominator_dataset_mix
+
+    ckde_fun = CKDE_CPD._logdenominator_dataset
 
     print("Test > Train Low Memory")
     print("..............")
@@ -118,11 +120,11 @@ def iterate_train_low_memory(evidence, node_type, variable):
     rust_time = end - start
     print("Rust implementation: " + str(rust_time))
     print("Ratio: " + str((py_time * 1000000) / rust_time))
-    print("Python result: " + str(py_result))
+    print("Python result: " + str(py_result.sum()))
     if isinstance(rust_result, np.ndarray):
-        rust_result = rust_result[:10].sum()
-    print("Rust result: " + str(rust_result))
-    assert np.isclose(py_result, rust_result), \
+        rust_result = rust_result[:10]
+    print("Rust result: " + str(rust_result.sum()))
+    assert np.all(np.isclose(py_result, rust_result)), \
         "Wrong result for variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type) + \
         " in Test > Train Low Memory"
 
@@ -147,11 +149,11 @@ def iterate_train_high_memory(evidence, node_type, variable):
     rust_time = end - start
     print("Rust implementation: " + str(rust_time))
     print("Ratio: " + str(py_time / rust_time))
-    print("Python result: " + str(py_result))
+    print("Python result: " + str(py_result.sum()))
     if isinstance(rust_result, np.ndarray):
-        rust_result = rust_result.sum()
-    print("Rust result: " + str(rust_result))
-    assert np.isclose(py_result, rust_result), \
+        rust_result = rust_result
+    print("Rust result: " + str(rust_result.sum()))
+    assert np.all(np.isclose(py_result, rust_result)), \
         "Wrong result for variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type) + \
         " in Test > Train High Memory"
 
@@ -176,11 +178,11 @@ def iterate_test_results(evidence, node_type, variable):
     rust_time = end - start
     print("Rust implementation: " + str(rust_time))
     print("Ratio: " + str(py_time / rust_time))
-    print("Python result: " + str(py_result))
+    print("Python result: " + str(py_result.sum()))
     if isinstance(rust_result, np.ndarray):
-        rust_result = rust_result.sum()
-    print("Rust result: " + str(rust_result))
-    assert np.isclose(py_result, rust_result), \
+        rust_result = rust_result
+    print("Rust result: " + str(rust_result.sum()))
+    assert np.all(np.isclose(py_result, rust_result)), \
         "Wrong result for variable " + str(variable) + ", evidence " + str(evidence) + ", node_type " + str(node_type) + \
         " in Train > Test"
 
@@ -264,6 +266,31 @@ if __name__ == '__main__':
     # test_ckde_results('c', ['b', 'a'], {'b': NodeType.CKDE, 'a': NodeType.GAUSSIAN})
 
     # print("all blocks = " + str(len(blocks)))
+
+
+    # folds = list(KFold(10, shuffle=True, random_state=0).split(blocks))
+    #
+    # fold0_train, fold0_test = folds[0]
+    # train_dataset = blocks.iloc[fold0_train,:]
+    # # print("train dataset = " + str(len(train_dataset)))
+    # vl = ValidationLikelihood(train_dataset, k=2, seed=0)
+    #
+    # k = vl.local_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN})
+    #
+    # i = 0
+    # while True:
+    #     i += 1
+    #     print("\r{}".format(i), end='')
+    #     vl2 = ValidationLikelihood(train_dataset, k=2, seed=0)
+    #
+    #     k2 = vl2.local_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN})
+    #
+    #     if np.any(~np.isclose(k, k2)):
+    #         import os
+    #         os.system('play -nq -t alsa synth {} sine {}'.format(1, 400))
+
+
+
     folds = list(KFold(10, shuffle=True, random_state=0).split(blocks))
 
     fold0_train, fold0_test = folds[0]
@@ -271,19 +298,39 @@ if __name__ == '__main__':
     # print("train dataset = " + str(len(train_dataset)))
     vl = ValidationLikelihood(train_dataset, k=2, seed=0)
 
-    k, g, d = vl.debug_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN})
+    k = vl.local_score('blackpix', ['length', 'eccen', 'p_black', 'p_and'], NodeType.CKDE, {'length': NodeType.GAUSSIAN,
+                                                                                'eccen': NodeType.CKDE,
+                                                                                'p_black': NodeType.GAUSSIAN,
+                                                                                'p_and': NodeType.GAUSSIAN})
 
     i = 0
-    while True:
-        i += 1
-        print("\r{}".format(i), end='')
-        vl2 = ValidationLikelihood(train_dataset, k=2, seed=0)
 
-        k2, g2, d2 = vl2.debug_score('blackpix', ['length'], NodeType.CKDE, {'length': NodeType.GAUSSIAN}, expected_values=(k, g, d))
+    vl2 = ValidationLikelihood(train_dataset, k=2, seed=0)
 
-        if np.any(~np.isclose(k, k2)) or np.any(~np.isclose(g, g2)) or np.any(~np.isclose(d, d2)):
-            import os
-            os.system('play -nq -t alsa synth {} sine {}'.format(1, 400))
+    k2 = vl2.local_score('blackpix', ['p_black', 'p_and', 'length', 'eccen'], NodeType.CKDE, {'p_black': NodeType.GAUSSIAN,
+                                                                                     'p_and': NodeType.GAUSSIAN,
+                                                                                     'length': NodeType.GAUSSIAN,
+                                                                                     'eccen': NodeType.CKDE})
+
+    vl3 = ValidationLikelihood(train_dataset, k=2, seed=0)
+    k3 = vl2.local_score('blackpix', ['eccen', 'p_and', 'p_black', 'length'], NodeType.CKDE, {'eccen': NodeType.CKDE,
+                                                                                     'p_and': NodeType.GAUSSIAN,
+                                                                                     'p_black': NodeType.GAUSSIAN,
+                                                                                     'length': NodeType.GAUSSIAN})
+
+    print("k = " + str(k))
+    print("k2 = " + str(k2))
+    print("k3 = " + str(k3))
+
+
+
+
+
+
+
+
+
+
 
     # np = vl.local_score('Nzeros', [], NodeType.CKDE, {})
     # p = vl.local_score('Nzeros', ['ASTV'], NodeType.CKDE, {'ASTV': NodeType.GAUSSIAN})

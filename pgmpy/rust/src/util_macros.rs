@@ -193,16 +193,6 @@ macro_rules! to_cpu {
 
             )
         }
-//        $(
-//            let len_buffer = $buffer.len();
-//            let mut vec = vec![Default::default(); len_buffer];
-//            $buffer
-//            .cmd()
-//            .queue($pro_que.queue())
-//            .read(&mut vec)
-//            .enq()
-//            .expect("Error reading result data.");
-//        )+
     };
 }
 
@@ -264,8 +254,6 @@ macro_rules! equal_slices {
             }
         }
     };
-
-
 }
 
 

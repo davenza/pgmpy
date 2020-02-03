@@ -6,8 +6,6 @@ from pgmpy.estimators import StructureEstimator, CVPredictiveLikelihood, Validat
 from pgmpy.models import HybridContinuousModel
 from pgmpy.factors.continuous import NodeType
 
-# from scipy.stats import gaussian_kde, norm
-# import matplotlib.pyplot as plt
 import math
 
 
@@ -869,9 +867,6 @@ class HybridCachedHillClimbing(StructureEstimator):
         if not nx.is_directed_acyclic_graph(graph):
             raise ValueError("Whitelisted arcs generates cycles in the starting graph.")
 
-    def has_converged(self, model, starting_n, alpha):
-        pass
-
     # FIXME: Implement tabu.
     def estimate_cv(
         self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, max_iter=1e6,
@@ -925,8 +920,6 @@ class HybridCachedHillClimbing(StructureEstimator):
         iter_no = 0
         print("Starting score: " + str(self._total_score_print(current_model)))
 
-        max_uint = np.iinfo(np.int32).max
-
         iter_no_improvement = 0
         current_score = self._total_score()
 
@@ -942,77 +935,16 @@ class HybridCachedHillClimbing(StructureEstimator):
 
             if op is None:
                 break
-                # if self.has_converged(current_model, 30, significant_alpha):
-                #     break
-                # else:
-                #     iter_no_improvement += 1
-                #     self.scoring_method.change_seed(np.random.randint(0, max_uint))
-                #     self._precompute_cache_node_scores(current_model)
-                #     self._precompute_cache_arcs(current_model, scores)
-                #     self._precompute_cache_types(current_model, type_scores)
-                #     current_score = self.node_scores.sum()
-                #     print("Current score: " + str(self.node_scores.sum()))
-                #     continue
 
             iter_no_improvement = 0
 
             print("Best op: " + str(op))
             print()
 
-            old_node_scores = self.node_scores.copy()
-            old_scores = scores.copy()
-            old_type_scores = type_scores.copy()
-            old_model = current_model.copy()
-
             self.apply_operator(op, current_model, scores, type_scores)
             new_score = self._total_score()
 
-            # #######################################
-            # START DEBUG CODE!
-            # #######################################
-
-            new_cached_node_scores = np.empty((nnodes,))
-            new_cached_scores = np.empty((nnodes, nnodes))
-            new_cached_type_scores = np.empty((nnodes,))
-
-            # Cached node scores
-            local_score = self.scoring_method.local_score
-            for node in current_model:
-                node_index = self.nodes_indices[node]
-                parents = set(current_model.get_parents(node))
-                node_type = current_model.node_type[node]
-                new_cached_node_scores[node_index] = local_score(node, parents, node_type, current_model.node_type)
-
-            self._precompute_cache_arcs(current_model, new_cached_scores)
-            new_cached_scores[~self.constraints_matrix] = maximum_fill_value
-            self._precompute_cache_types(current_model, new_cached_type_scores)
-
-            if not np.all(np.isclose(self.node_scores, new_cached_node_scores)) or \
-                    not np.all(np.isclose(scores, new_cached_scores)) or \
-                    not np.all(np.isclose(type_scores, new_cached_type_scores)):
-                from datetime import datetime
-                now = datetime.now()
-                np.savez('error_dump_' + str(now), old_node_scores=old_node_scores, old_scores=old_scores,
-                         old_type_scores=old_type_scores,
-                         node_scores=self.node_scores, scores=scores, type_scores=type_scores,
-                         cached_node_scores=new_cached_node_scores, cached_scores=new_cached_scores,
-                         cached_type_scores=new_cached_type_scores)
-                old_model.save_model('error_oldmodel_' + str(now))
-                current_model.save_model('error_currentmodel_' + str(now))
-                raise ValueError("Unknown error in score matrix ")
-
-            # #######################################
-            # END DEBUG CODE!
-            # #######################################
-
             if not np.isclose(new_score, current_score + op[3]):
-                from datetime import datetime
-                now = datetime.now()
-                np.savez('error_dump_' + str(now), old_node_scores=old_node_scores, old_scores=old_scores,
-                         old_type_scores=old_type_scores,
-                         node_scores=self.node_scores, scores=scores, type_scores=type_scores)
-                old_model.save_model('error_oldmodel_' + str(now))
-                current_model.save_model('error_currentmodel_' + str(now))
                 raise ValueError("Unknown error computing delta score.\nComputed score: " +
                                  str(op[3]) + "\nActual score: " + str(new_score - current_score) + '\n')
 
@@ -1095,8 +1027,6 @@ class HybridCachedHillClimbing(StructureEstimator):
               " (" + str(best_validation_score / n_validation_instances) + " / instance)")
 
         models = [current_model.copy()]
-        scores_history = [current_score]
-        scores_validation_history = [best_validation_score]
 
         for callback in callbacks:
             callback.call(current_model, None, self.scoring_method, iter_no)
@@ -1119,58 +1049,11 @@ class HybridCachedHillClimbing(StructureEstimator):
             print("Best op: " + str(op))
             print()
 
-            old_node_scores = self.node_scores.copy()
-            old_scores = scores.copy()
-            old_type_scores = type_scores.copy()
-            old_model = current_model.copy()
-
             self.apply_operator(op, current_model, scores, type_scores)
-
             new_score = self._total_score()
             new_validation_score = self._total_validation_score(current_model)
 
-
-            # #######################################
-            # START DEBUG CODE!
-            # #######################################
-
-            new_cached_node_scores = np.empty((nnodes,))
-            new_cached_scores = np.empty((nnodes, nnodes))
-            new_cached_type_scores = np.empty((nnodes,))
-
-            # Cached node scores
-            local_score = self.scoring_method.local_score
-            for node in current_model:
-                node_index = self.nodes_indices[node]
-                parents = set(current_model.get_parents(node))
-                node_type = current_model.node_type[node]
-                new_cached_node_scores[node_index] = local_score(node, parents, node_type, current_model.node_type)
-
-            self._precompute_cache_arcs(current_model, new_cached_scores)
-            new_cached_scores[~self.constraints_matrix] = maximum_fill_value
-            self._precompute_cache_types(current_model, new_cached_type_scores)
-
-            if not np.all(np.isclose(self.node_scores, new_cached_node_scores)) or \
-               not np.all(np.isclose(scores, new_cached_scores)) or \
-               not np.all(np.isclose(type_scores, new_cached_type_scores)):
-                from datetime import datetime
-                now = datetime.now()
-                np.savez('error_dump_' + str(now), old_node_scores=old_node_scores, old_scores=old_scores,
-                         old_type_scores=old_type_scores,
-                         node_scores=self.node_scores, scores=scores, type_scores=type_scores,
-                         cached_node_scores=new_cached_node_scores, cached_scores=new_cached_scores,
-                         cached_type_scores=new_cached_type_scores)
-                old_model.save_model('error_oldmodel_' + str(now))
-                current_model.save_model('error_currentmodel_' + str(now))
-                raise ValueError("Unknown error in score matrix ")
-
-            # #######################################
-            # END DEBUG CODE!
-            # #######################################
-
             models.append(current_model.copy())
-            scores_history.append(new_score)
-            scores_validation_history.append(new_validation_score)
 
             if best_validation_score > new_validation_score:
                 iter_no_improvement += 1
@@ -1205,13 +1088,6 @@ class HybridCachedHillClimbing(StructureEstimator):
                 tabu_last.clear()
 
             if not np.isclose(new_score, current_score + op[3]):
-                from datetime import datetime
-                now = datetime.now()
-                np.savez('error_dump_' + str(now), old_node_scores=old_node_scores, old_scores=old_scores,
-                         old_type_scores=old_type_scores,
-                         node_scores=self.node_scores, scores=scores, type_scores=type_scores)
-                old_model.save_model('error_oldmodel_' + str(now))
-                current_model.save_model('error_currentmodel_' + str(now))
                 raise ValueError("Unknown error computing delta score.\nComputed score: " +
                                  str(op[3]) + "\nActual score: " + str(new_score - current_score) + '\n')
 
@@ -1219,9 +1095,8 @@ class HybridCachedHillClimbing(StructureEstimator):
                 callback.call(current_model, op, self.scoring_method, iter_no)
 
             print("Current score: " + str(new_score) + " (" + str(new_score / n_train_instances) + " / instance)")
-            val_score = self._total_validation_score(current_model)
-            print("Current validation score: " + str(val_score) +
-                  " (" + str(val_score / n_validation_instances) + " / instance)")
+            print("Current validation score: " + str(new_validation_score) +
+                  " (" + str(new_validation_score / n_validation_instances) + " / instance)")
             current_score = new_score
 
         for callback in callbacks:

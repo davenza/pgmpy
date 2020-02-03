@@ -219,6 +219,9 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
             g_cpd = MaximumLikelihoodEstimator.gaussian_estimate_with_parents(g, chain_rule_parents, data)
             if g_cpd is None:
                 raise ValueError("A gaussian CPD could not be estimated.")
+
+            print("Estimate " + str(g_cpd))
+
             gaussian_cpds.append(g_cpd)
             chain_rule_parents = chain_rule_parents.copy()
             chain_rule_parents.append(g)

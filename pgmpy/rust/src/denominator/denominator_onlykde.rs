@@ -1,6 +1,7 @@
 use crate::{empty_buffers, copy_buffers, Error, DoubleNumpyArray, buffer_fill_value,
-            get_max_work_size, is_rowmajor, max_gpu_vec_copy, log_sum_gpu_vec, max_gpu_mat,
-            sum_gpu_mat};
+            get_max_work_size, is_rowmajor, max_gpu_vec_copy, max_gpu_mat,
+            sum_gpu_vec, sum_gpu_mat, create_reduction_buffers_gpu_vec,
+            create_reduction_buffers_gpu_mat};
 
 use crate::denominator::{CKDE};
 
@@ -18,8 +19,6 @@ pub unsafe extern "C" fn logdenominator_dataset_onlykde(
     result: *mut c_double,
     error: *mut Error,
 ) {
-
-//    println!("\t[RUST] logdenominator_gaussian_kde {:p}", ckde);
     *error = Error::NotFinished;
     let mut ckde = Box::from_raw(ckde);
     let mut pro_que = Box::from_raw(pro_que);
@@ -135,7 +134,9 @@ unsafe fn logdenominator_iterate_test_onlykde(
         .build()
         .expect("Kernel copy_logpdf_result build failed.");
 
-    let tmp_reduc_buffers = create_reduction_buffers_gpu_vec(pro, error, n, max_work_size, num_groups);
+    let tmp_reduc_buffers = create_reduction_buffers_gpu_vec(pro_que, error, n, max_work_size);
+
+    if *error == Error::MemoryError { return; };
 
     for i in 0..m {
         kernel_substract.set_arg("row", i as u32).unwrap();
@@ -274,7 +275,6 @@ unsafe fn logdenominator_iterate_train_low_memory_onlykde(
         .arg(&ckde.marginal_precision)
         .arg(&max_buffer)
         .arg_local::<f64>(nparents_kde * nparents_kde)
-        .arg(n as u32)
         .build()
         .expect("Kernel onlykde_exponent_coefficients_iterate_train_low_memory_checkmax build failed.");
 
@@ -288,7 +288,6 @@ unsafe fn logdenominator_iterate_train_low_memory_onlykde(
         .arg(&final_result_buffer)
         .arg(&max_buffer)
         .arg_local::<f64>(nparents_kde * nparents_kde)
-        .arg(n as u32)
         .build()
         .expect("Kernel onlykde_exponent_coefficients_iterate_train_low_memory_compute build failed.");
 
@@ -380,10 +379,14 @@ unsafe fn logdenominator_iterate_train_high_memory_onlykde(
         f64,
         m*nparents_kde,
         m,
-        m*num_groups
+        m
     );
 
     let (test_rowmajor, test_leading_dimension) = is_rowmajor(x);
+
+    let tmp_reduc_buffers = create_reduction_buffers_gpu_mat(pro_que, error, m, n, max_work_size);
+
+    if *error == Error::MemoryError { return; };
 
     let kernel_substract = pro_que
         .kernel_builder(substract_without_origin_name(test_rowmajor, kde.rowmajor))
@@ -412,15 +415,14 @@ unsafe fn logdenominator_iterate_train_high_memory_onlykde(
         .build()
         .expect("Kernel onlykde_exponent_coefficients_iterate_test build failed.");
 
-    let kernel_exp_and_sum_mat = pro_que
-        .kernel_builder("exp_and_sum_mat")
+    let kernel_expmax_mat = pro_que
+        .kernel_builder("expmax_mat")
         .global_work_size(m * n)
         .arg(coeffs)
         .arg(&max_buffer)
         .arg(n as u32)
-        .arg(num_groups as u32)
         .build()
-        .expect("Kernel exp_and_sum_mat build failed.");
+        .expect("Kernel expmax_mat build failed.");
 
     let kernel_log_and_sum = pro_que
         .kernel_builder("log_and_sum_mat")
@@ -429,7 +431,6 @@ unsafe fn logdenominator_iterate_train_high_memory_onlykde(
         .arg(coeffs)
         .arg(&max_buffer)
         .arg(n as u32)
-        .arg(num_groups as u32)
         .build()
         .expect("Kernel log_and_sum_mat build failed.");
 
@@ -448,6 +449,7 @@ unsafe fn logdenominator_iterate_train_high_memory_onlykde(
     max_gpu_mat(
         &pro_que,
         coeffs,
+        &tmp_reduc_buffers,
         &max_buffer,
         m,
         n,
@@ -456,13 +458,14 @@ unsafe fn logdenominator_iterate_train_high_memory_onlykde(
         num_groups,
     );
 
-    kernel_exp_and_sum_mat
+    kernel_expmax_mat
         .enq()
-        .expect("Error while executing exp_and_sum_mat kernel.");
+        .expect("Error while executing expmax_mat kernel.");
 
     sum_gpu_mat(
         &pro_que,
         coeffs,
+        &tmp_reduc_buffers,
         m,
         n,
         max_work_size,

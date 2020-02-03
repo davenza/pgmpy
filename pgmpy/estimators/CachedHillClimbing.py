@@ -120,8 +120,8 @@ class CachedHillClimbing(StructureEstimator):
                 # Delta score of removing arc 'other_node' -> 'node'
                 scores[other_index, node_index] = \
                     local_score(node, parents_new) - self.node_scores[node_index]
-                print("Caching removing arc " + other_node + " -> " + node +
-                      " (" + str(scores[other_index, node_index]) + ")")
+                # print("Caching removing arc " + other_node + " -> " + node +
+                #       " (" + str(scores[other_index, node_index]) + ")")
             # Delta score of reversing arc 'node' -> 'other_node'
             elif model.has_edge(node, other_node):
                 other_node_parents = set(model.get_parents(other_node))
@@ -136,15 +136,15 @@ class CachedHillClimbing(StructureEstimator):
                     local_score(node, parents_new) - \
                     self.node_scores[other_index] - \
                     self.node_scores[node_index]
-                print("Caching reversing arc " + node + " -> " + other_node +
-                      " (" + str(scores[other_index, node_index]) + ")")
+                # print("Caching reversing arc " + node + " -> " + other_node +
+                #       " (" + str(scores[other_index, node_index]) + ")")
             else:
                 # Delta score of adding arc 'other_node' -> 'node'
                 parents_new = parents.copy()
                 parents_new.add(other_node)
                 scores[other_index, node_index] = local_score(node, parents_new) - self.node_scores[node_index]
-                print("Caching adding arc " + other_node + " -> " + node +
-                      " (" + str(scores[other_index, node_index]) + ")")
+                # print("Caching adding arc " + other_node + " -> " + node +
+                #       " (" + str(scores[other_index, node_index]) + ")")
 
     def score_add_arc(self, model, source, dest):
         local_score = self.scoring_method.local_score
@@ -661,8 +661,8 @@ class CachedHillClimbing(StructureEstimator):
             new_score = self._total_score()
 
             if not np.isclose(new_score, current_score + op[3]):
-                print("Error on scores")
-                input()
+                raise ValueError("Unknown error computing delta score.\nComputed score: " +
+                                 str(op[3]) + "\nActual score: " + str(new_score - current_score) + '\n')
 
             for callback in callbacks:
                 callback.call(current_model, op, self.scoring_method, iter_no)
@@ -800,8 +800,8 @@ class CachedHillClimbing(StructureEstimator):
                 tabu_last.clear()
 
             if not np.isclose(new_score, current_score + op[3]):
-                print("Error on scores")
-                input()
+                raise ValueError("Unknown error computing delta score.\nComputed score: " +
+                                 str(op[3]) + "\nActual score: " + str(new_score - current_score) + '\n')
 
             for callback in callbacks:
                 callback.call(current_model, op, self.scoring_method, iter_no)
