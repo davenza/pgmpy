@@ -327,6 +327,9 @@ fn kernel_substract_name(train_rowmajor: bool, test_rowmajor: bool) -> &'static 
     }
 }
 
+/// Create temporal buffers to perform a reduction operation over a vector buffer. When a reduction
+/// is performed the number of elements is transformed from `n` to `ceil(n  / maximum_work_size)`.
+/// Depending on `n`, the number of needed temporal buffers could change.
 unsafe fn create_reduction_buffers_gpu_vec(pro_que: &Box<ProQue>,
                                            error: *mut Error,
                                            len_buffer: usize,
@@ -350,6 +353,10 @@ unsafe fn create_reduction_buffers_gpu_vec(pro_que: &Box<ProQue>,
     v
 }
 
+/// Create temporal buffers to perform a reduction operation over a the columns of a matrix buffer.
+/// When a reduction is performed the number of elements is transformed from `(m,n)` to
+/// `(m, ceil(n  / maximum_work_size))`. Depending on `n`, the number of needed temporal buffers
+/// could change.
 unsafe fn create_reduction_buffers_gpu_mat(pro_que: &Box<ProQue>,
                                            error: *mut Error,
                                            rows_mat: usize,
@@ -1410,7 +1417,6 @@ unsafe fn logpdf_iterate_train_high_memory(
         .arg(tmp_vec_buffer)
         .arg(&max_buffer)
         .arg(n as u32)
-        .arg(num_groups as u32)
         .build()
         .expect("Kernel expmax_mat build failed.");
 

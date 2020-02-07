@@ -37,8 +37,6 @@
 ///     let (buffer1, buffer2) = copy_buffers!(pro_que, error_ptr, vec, vec2 => true);
 ///  }
 /// ```
-
-
 #[macro_export]
 macro_rules! copy_buffers {
     ($pro_que:expr, $error:expr, $($slice:expr),+) => {

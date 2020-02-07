@@ -43,7 +43,7 @@ class BaseEstimator(object):
 
         if not isinstance(state_names, dict):
             self.state_names = {
-                var: self._collect_state_names(var) for var in variables
+                var: self._collect_state_names(var) for var in discrete_variables
             }
         else:
             self.state_names = dict()
@@ -61,7 +61,7 @@ class BaseEstimator(object):
 
     def _collect_state_names(self, variable):
         "Return a list of states that the variable takes in the data"
-        states = sorted(list(self.data.ix[:, variable].dropna().unique()))
+        states = sorted(list(self.data.loc[:, variable].dropna().unique()))
         return states
 
     # FIXME: Is this problematic with memory? https://stackoverflow.com/questions/33672412/python-functools-lru-cache-with-class-methods-release-object

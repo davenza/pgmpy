@@ -235,7 +235,6 @@ __kernel void parallel_max_gpu(__constant double *input,
     while (group_size > 1) {
         int stride = group_size / 2;
         barrier(CLK_LOCAL_MEM_FENCE);
-
         if (group_size % 2 == 0) {
             if (local_id < stride) {
                 localMaxs[local_id] = max(localMaxs[local_id], localMaxs[local_id + stride]);
@@ -390,14 +389,12 @@ __kernel void parallel_max_mat_gpu(__constant double *input,
             if (local_id < stride) {
                 localMaxs[local_id] = max(localMaxs[local_id], localMaxs[local_id + stride]);
             }
-
             group_size = group_size / 2;
         }
         else {
             if (local_id < stride) {
                 localMaxs[local_id+1] = max(localMaxs[local_id+1], localMaxs[local_id+1+stride]);
             }
-
             group_size = (group_size / 2) + 1;
         }
     }
@@ -477,14 +474,12 @@ __kernel void parallel_sum_mat_gpu(__constant double *input,
             if (local_id < stride) {
                 localSums[local_id] += localSums[local_id + stride];
             }
-
             group_size = group_size / 2;
         }
         else {
             if (local_id < stride) {
                 localSums[local_id+1] += localSums[local_id+1+stride];
             }
-
             group_size = (group_size / 2) + 1;
         }
     }
@@ -517,14 +512,12 @@ __kernel void parallel_sum_mat_gpu_single_wg(__constant double *input,
             if (global_id_col < stride) {
                 localSums[global_id_col] += localSums[global_id_col + stride];
             }
-
             group_size = group_size / 2;
         }
         else {
             if (global_id_col < stride) {
                 localSums[global_id_col+1] += localSums[global_id_col+1+stride];
             }
-
             group_size = (group_size / 2) + 1;
         }
     }
