@@ -38,9 +38,11 @@ class LinearGaussianBayesianNetwork(BayesianModel):
             o = pickle.load(pickle_file)
 
         if type(o) is BayesianModel:
-            o = LinearGaussianBayesianNetwork(o.edges)
-
-        return o
+            out = LinearGaussianBayesianNetwork(o.edges)
+            out.add_nodes_from(o)
+        else:
+            raise ValueError("Pickle object is not a BayesianModel.")
+        return out
 
     def add_cpds(self, *cpds):
         """
@@ -69,6 +71,9 @@ class LinearGaussianBayesianNetwork(BayesianModel):
         P(x3| x2) = N(-1*x2_mu); 4)
 
         """
+        if isinstance(cpds[0], list):
+            cpds = cpds[0]
+
         for cpd in cpds:
             if not isinstance(cpd, LinearGaussianCPD):
                 raise ValueError("Only LinearGaussianCPD can be added.")

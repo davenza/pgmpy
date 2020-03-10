@@ -298,7 +298,6 @@ __kernel void parallel_max_gpu(__constant double *input,
     while (group_size > 1) {
         int stride = group_size / 2;
         barrier(CLK_LOCAL_MEM_FENCE);
-
         if (group_size % 2 == 0) {
             if (local_id < stride) {
                 localMaxs[local_id] = max(localMaxs[local_id], localMaxs[local_id + stride]);
@@ -453,14 +452,12 @@ __kernel void parallel_max_mat_gpu(__constant double *input,
             if (local_id < stride) {
                 localMaxs[local_id] = max(localMaxs[local_id], localMaxs[local_id + stride]);
             }
-
             group_size = group_size / 2;
         }
         else {
             if (local_id < stride) {
                 localMaxs[local_id+1] = max(localMaxs[local_id+1], localMaxs[local_id+1+stride]);
             }
-
             group_size = (group_size / 2) + 1;
         }
     }
@@ -540,14 +537,12 @@ __kernel void parallel_sum_mat_gpu(__constant double *input,
             if (local_id < stride) {
                 localSums[local_id] += localSums[local_id + stride];
             }
-
             group_size = group_size / 2;
         }
         else {
             if (local_id < stride) {
                 localSums[local_id+1] += localSums[local_id+1+stride];
             }
-
             group_size = (group_size / 2) + 1;
         }
     }
@@ -580,14 +575,12 @@ __kernel void parallel_sum_mat_gpu_single_wg(__constant double *input,
             if (global_id_col < stride) {
                 localSums[global_id_col] += localSums[global_id_col + stride];
             }
-
             group_size = group_size / 2;
         }
         else {
             if (global_id_col < stride) {
                 localSums[global_id_col+1] += localSums[global_id_col+1+stride];
             }
-
             group_size = (group_size / 2) + 1;
         }
     }
@@ -621,9 +614,9 @@ __kernel void log_and_sum_mat(__global double* output,
 ##########################################
 */
 
-#line 565
+#line 558
 
-#line 570
+#line 563
 
 __kernel void substract_without_origin_rowmajor_rowmajor(__constant double *train_data,
                                                                 __private uint train_leading_dimension,
@@ -643,7 +636,7 @@ __kernel void substract_without_origin_rowmajor_rowmajor(__constant double *trai
 }
 
 
-#line 570
+#line 563
 
 __kernel void substract_without_origin_rowmajor_columnmajor(__constant double *train_data,
                                                                 __private uint train_leading_dimension,
@@ -665,9 +658,9 @@ __kernel void substract_without_origin_rowmajor_columnmajor(__constant double *t
 
 
 
-#line 565
+#line 558
 
-#line 570
+#line 563
 
 __kernel void substract_without_origin_columnmajor_rowmajor(__constant double *train_data,
                                                                 __private uint train_leading_dimension,
@@ -687,7 +680,7 @@ __kernel void substract_without_origin_columnmajor_rowmajor(__constant double *t
 }
 
 
-#line 570
+#line 563
 
 __kernel void substract_without_origin_columnmajor_columnmajor(__constant double *train_data,
                                                                 __private uint train_leading_dimension,
@@ -1010,7 +1003,7 @@ __kernel void onlykde_exponent_coefficients_iterate_train_low_memory_compute(__c
 ##########################################
 */
 
-#line 896
+#line 889
 
 __kernel void s1_and_s3_sum_parents_rowmajor(__constant double* test_dataset,
                                         __private uint leading_dimension,
@@ -1054,7 +1047,7 @@ __kernel void s1_and_s3_sum_constant_rowmajor(__constant double* test_dataset,
 }
 
 
-#line 896
+#line 889
 
 __kernel void s1_and_s3_sum_parents_columnmajor(__constant double* test_dataset,
                                         __private uint leading_dimension,
@@ -1099,7 +1092,7 @@ __kernel void s1_and_s3_sum_constant_columnmajor(__constant double* test_dataset
 
 
 
-#line 944
+#line 937
 __kernel void onlygaussian_exponent_coefficients_iterate_test_rowmajor(__constant double* training_dataset,
                                              __private uint train_leading_dimension,
                                             __constant double* precision,
@@ -1186,7 +1179,7 @@ __kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_comput
 }
 
 
-#line 944
+#line 937
 __kernel void onlygaussian_exponent_coefficients_iterate_test_columnmajor(__constant double* training_dataset,
                                              __private uint train_leading_dimension,
                                             __constant double* precision,
@@ -1281,9 +1274,9 @@ __kernel void onlygaussian_exponent_coefficients_iterate_train_low_memory_comput
 ##########################################
 */
 
-#line 1042
+#line 1035
 
-#line 1047
+#line 1040
 
 __kernel void substract_without_origin_from_indices_iterate_test_rowmajor_rowmajor(__constant double *train_data,
                                                             __private uint train_leading_dimension,
@@ -1304,7 +1297,7 @@ __kernel void substract_without_origin_from_indices_iterate_test_rowmajor_rowmaj
 }
 
 
-#line 1047
+#line 1040
 
 __kernel void substract_without_origin_from_indices_iterate_test_rowmajor_columnmajor(__constant double *train_data,
                                                             __private uint train_leading_dimension,
@@ -1327,9 +1320,9 @@ __kernel void substract_without_origin_from_indices_iterate_test_rowmajor_column
 
 
 
-#line 1042
+#line 1035
 
-#line 1047
+#line 1040
 
 __kernel void substract_without_origin_from_indices_iterate_test_columnmajor_rowmajor(__constant double *train_data,
                                                             __private uint train_leading_dimension,
@@ -1350,7 +1343,7 @@ __kernel void substract_without_origin_from_indices_iterate_test_columnmajor_row
 }
 
 
-#line 1047
+#line 1040
 
 __kernel void substract_without_origin_from_indices_iterate_test_columnmajor_columnmajor(__constant double *train_data,
                                                             __private uint train_leading_dimension,
@@ -1374,9 +1367,9 @@ __kernel void substract_without_origin_from_indices_iterate_test_columnmajor_col
 
 
 
-#line 1074
+#line 1067
 
-#line 1079
+#line 1072
 
 __kernel void substract_without_origin_from_indices_iterate_train_rowmajor_rowmajor(__constant double *train_data,
         __private uint train_leading_dimension,
@@ -1397,7 +1390,7 @@ __kernel void substract_without_origin_from_indices_iterate_train_rowmajor_rowma
 }
 
 
-#line 1079
+#line 1072
 
 __kernel void substract_without_origin_from_indices_iterate_train_rowmajor_columnmajor(__constant double *train_data,
         __private uint train_leading_dimension,
@@ -1420,9 +1413,9 @@ __kernel void substract_without_origin_from_indices_iterate_train_rowmajor_colum
 
 
 
-#line 1074
+#line 1067
 
-#line 1079
+#line 1072
 
 __kernel void substract_without_origin_from_indices_iterate_train_columnmajor_rowmajor(__constant double *train_data,
         __private uint train_leading_dimension,
@@ -1443,7 +1436,7 @@ __kernel void substract_without_origin_from_indices_iterate_train_columnmajor_ro
 }
 
 
-#line 1079
+#line 1072
 
 __kernel void substract_without_origin_from_indices_iterate_train_columnmajor_columnmajor(__constant double *train_data,
         __private uint train_leading_dimension,
@@ -1587,7 +1580,7 @@ __kernel void dotproduct(__constant double *Ti,
     }
 }
 
-#line 1226
+#line 1219
 
 __kernel void exponent_coefficients_iterate_test_rowmajor(__constant double *train_data,
                                                 __private uint train_leading_dimension,
@@ -1615,7 +1608,7 @@ __kernel void exponent_coefficients_iterate_test_rowmajor(__constant double *tra
 }
 
 
-#line 1226
+#line 1219
 
 __kernel void exponent_coefficients_iterate_test_columnmajor(__constant double *train_data,
                                                 __private uint train_leading_dimension,
@@ -1644,7 +1637,7 @@ __kernel void exponent_coefficients_iterate_test_columnmajor(__constant double *
 
 
 
-#line 1258
+#line 1251
 
 __kernel void exponent_coefficients_iterate_train_high_memory_rowmajor(__constant double *train_data,
                                         __private uint train_leading_dimension,
@@ -1674,7 +1667,7 @@ __kernel void exponent_coefficients_iterate_train_high_memory_rowmajor(__constan
 }
 
 
-#line 1258
+#line 1251
 
 __kernel void exponent_coefficients_iterate_train_high_memory_columnmajor(__constant double *train_data,
                                         __private uint train_leading_dimension,
@@ -1705,7 +1698,7 @@ __kernel void exponent_coefficients_iterate_train_high_memory_columnmajor(__cons
 
 
 
-#line 1292
+#line 1285
 
 __kernel void exponent_coefficients_iterate_train_low_memory_checkmax_rowmajor(__constant double *train_data,
                                         __private uint train_leading_dimension,
@@ -1733,7 +1726,7 @@ __kernel void exponent_coefficients_iterate_train_low_memory_checkmax_rowmajor(_
 }
 
 
-#line 1292
+#line 1285
 
 __kernel void exponent_coefficients_iterate_train_low_memory_checkmax_columnmajor(__constant double *train_data,
                                         __private uint train_leading_dimension,
@@ -1762,7 +1755,7 @@ __kernel void exponent_coefficients_iterate_train_low_memory_checkmax_columnmajo
 
 
 
-#line 1324
+#line 1317
 
 __kernel void exponent_coefficients_iterate_train_low_memory_compute_rowmajor(__constant double *train_data,
                                         __private uint train_leading_dimension,
@@ -1791,7 +1784,7 @@ __kernel void exponent_coefficients_iterate_train_low_memory_compute_rowmajor(__
 }
 
 
-#line 1324
+#line 1317
 
 __kernel void exponent_coefficients_iterate_train_low_memory_compute_columnmajor(__constant double *train_data,
                                         __private uint train_leading_dimension,

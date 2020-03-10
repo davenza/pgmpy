@@ -869,7 +869,7 @@ class HybridCachedHillClimbing(StructureEstimator):
 
     # FIXME: Implement tabu.
     def estimate_cv(
-        self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, max_iter=1e6,
+        self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, iter_no=0, max_iter=1e6,
             significant_threshold=5, significant_alpha=0.05, callbacks=None
     ):
         """
@@ -917,7 +917,6 @@ class HybridCachedHillClimbing(StructureEstimator):
 
         current_model = start
 
-        iter_no = 0
         print("Starting score: " + str(self._total_score_print(current_model)))
 
         iter_no_improvement = 0
@@ -963,7 +962,7 @@ class HybridCachedHillClimbing(StructureEstimator):
 
     # FIXME: Implement tabu.
     def estimate_validation(
-            self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, max_iter=1e6, patience=0,
+            self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, iter_no=0, max_iter=1e6, patience=0,
             callbacks=None
     ):
         """
@@ -1109,15 +1108,15 @@ class HybridCachedHillClimbing(StructureEstimator):
               " (" + str(val_score / n_validation_instances) + " / instance)")
         return current_model
 
-    def estimate(self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, max_iter=1e6, patience=0,
+    def estimate(self, start=None, tabu_length=0, max_indegree=None, epsilon=1e-4, iter_no=0, max_iter=1e6, patience=0,
                  significant_threshold=5, significant_alpha=0.05, callbacks=None):
         if isinstance(self.scoring_method, ValidationLikelihood):
             return self.estimate_validation(start=start, tabu_length=tabu_length, max_indegree=max_indegree,
-                                            epsilon=epsilon, max_iter=max_iter, patience=patience,
+                                            epsilon=epsilon, iter_no=iter_no, max_iter=max_iter, patience=patience,
                                             callbacks=callbacks)
         elif isinstance(self.scoring_method, CVPredictiveLikelihood):
             return self.estimate_cv(start=start, tabu_length=tabu_length, max_indegree=max_indegree, epsilon=epsilon,
-                                    max_iter=max_iter, significant_threshold=significant_threshold,
+                                    iter_no=iter_no, max_iter=max_iter, significant_threshold=significant_threshold,
                                     significant_alpha=significant_alpha, callbacks=callbacks)
 
     def _total_score(self):

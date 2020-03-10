@@ -5,6 +5,7 @@ from __future__ import division
 import numpy as np
 from scipy.stats import norm
 
+from pgmpy.extern import six
 from pgmpy.factors.base import BaseFactor
 
 import math
@@ -121,7 +122,7 @@ class LinearGaussianCPD(BaseFactor):
         >>> copy_cpd.evidence
         ['X1', 'X2', 'X3']
         """
-        copy_cpd = LinearGaussianCPD(self.variable, self.beta, self.variance, list(self.evidence))
+        copy_cpd = LinearGaussianCPD(self.variable, self.beta.copy(), self.variance, list(self.evidence))
 
         return copy_cpd
 
@@ -148,3 +149,24 @@ class LinearGaussianCPD(BaseFactor):
                 variance=self.variance,
             )
         return rep_str
+
+    def reduce(self, values, inplace=True):
+        if isinstance(values, six.string_types):
+            raise TypeError("values: Expected type list or array-like, got type str")
+
+        if not all([isinstance(state_tuple, tuple) for state_tuple in values]):
+            raise TypeError(
+                "values: Expected type list of tuples, get type {type}", type(values[0])
+            )
+
+        phi = self if inplace else self.copy()
+
+        for var, value in values:
+            phi.beta[0] += phi.beta[phi.evidence.index(var)+1]*value
+            phi.beta = np.delete(phi.beta, phi.evidence.index(var)+1)
+
+            phi.evidence.remove(var)
+            phi.variables.remove(var)
+
+        if not inplace:
+            return phi

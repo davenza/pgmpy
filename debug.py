@@ -253,17 +253,17 @@ blocks = blocks.drop(dependent_features, axis=1)
 
 if __name__ == '__main__':
 
-    # test_ckde_results('c', [], {})
-    # test_ckde_results('c', ['a'], {'a': NodeType.GAUSSIAN})
-    # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.GAUSSIAN})
-    # test_ckde_results('c', ['b', 'a'], {'b': NodeType.GAUSSIAN, 'a': NodeType.GAUSSIAN})
-    # test_ckde_results('c', ['a'], {'a': NodeType.CKDE})
-    # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.CKDE})
-    # test_ckde_results('c', ['b', 'a'], {'b': NodeType.CKDE, 'a': NodeType.CKDE})
-    # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.GAUSSIAN})
-    # test_ckde_results('c', ['b', 'a'], {'b': NodeType.GAUSSIAN, 'a': NodeType.CKDE})
-    # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.CKDE})
-    # test_ckde_results('c', ['b', 'a'], {'b': NodeType.CKDE, 'a': NodeType.GAUSSIAN})
+    test_ckde_results('c', [], {})
+    test_ckde_results('c', ['a'], {'a': NodeType.GAUSSIAN})
+    test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.GAUSSIAN})
+    test_ckde_results('c', ['b', 'a'], {'b': NodeType.GAUSSIAN, 'a': NodeType.GAUSSIAN})
+    test_ckde_results('c', ['a'], {'a': NodeType.CKDE})
+    test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.CKDE})
+    test_ckde_results('c', ['b', 'a'], {'b': NodeType.CKDE, 'a': NodeType.CKDE})
+    test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.GAUSSIAN})
+    test_ckde_results('c', ['b', 'a'], {'b': NodeType.GAUSSIAN, 'a': NodeType.CKDE})
+    test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.CKDE})
+    test_ckde_results('c', ['b', 'a'], {'b': NodeType.CKDE, 'a': NodeType.GAUSSIAN})
 
     # print("all blocks = " + str(len(blocks)))
 
@@ -290,39 +290,39 @@ if __name__ == '__main__':
     #         os.system('play -nq -t alsa synth {} sine {}'.format(1, 400))
 
 
-
-    folds = list(KFold(10, shuffle=True, random_state=0).split(blocks))
-
-    fold0_train, fold0_test = folds[0]
-    train_dataset = blocks.iloc[fold0_train,:]
-    # print("train dataset = " + str(len(train_dataset)))
-    vl = ValidationLikelihood(train_dataset, k=2, seed=0)
-
-    k = vl.local_score('blackpix', ['length', 'eccen', 'p_black', 'p_and'], NodeType.CKDE, {'length': NodeType.GAUSSIAN,
-                                                                                'eccen': NodeType.CKDE,
-                                                                                'p_black': NodeType.GAUSSIAN,
-                                                                                'p_and': NodeType.GAUSSIAN})
-
-    i = 0
-
-    vl2 = ValidationLikelihood(train_dataset, k=2, seed=0)
-
-    k2 = vl2.local_score('blackpix', ['p_black', 'p_and', 'length', 'eccen'], NodeType.CKDE, {'p_black': NodeType.GAUSSIAN,
-                                                                                     'p_and': NodeType.GAUSSIAN,
-                                                                                     'length': NodeType.GAUSSIAN,
-                                                                                     'eccen': NodeType.CKDE})
-
-    vl3 = ValidationLikelihood(train_dataset, k=2, seed=0)
-    k3 = vl2.local_score('blackpix', ['eccen', 'p_and', 'p_black', 'length'], NodeType.CKDE, {'eccen': NodeType.CKDE,
-                                                                                     'p_and': NodeType.GAUSSIAN,
-                                                                                     'p_black': NodeType.GAUSSIAN,
-                                                                                     'length': NodeType.GAUSSIAN})
-
-    print("k = " + str(k))
-    print("k2 = " + str(k2))
-    print("k3 = " + str(k3))
-
-
+    #
+    # folds = list(KFold(10, shuffle=True, random_state=0).split(blocks))
+    #
+    # fold0_train, fold0_test = folds[0]
+    # train_dataset = blocks.iloc[fold0_train,:]
+    # # print("train dataset = " + str(len(train_dataset)))
+    # vl = ValidationLikelihood(train_dataset, k=2, seed=0)
+    #
+    # k = vl.local_score('blackpix', ['length', 'eccen', 'p_black', 'p_and'], NodeType.CKDE, {'length': NodeType.GAUSSIAN,
+    #                                                                             'eccen': NodeType.CKDE,
+    #                                                                             'p_black': NodeType.GAUSSIAN,
+    #                                                                             'p_and': NodeType.GAUSSIAN})
+    #
+    # i = 0
+    #
+    # vl2 = ValidationLikelihood(train_dataset, k=2, seed=0)
+    #
+    # k2 = vl2.local_score('blackpix', ['p_black', 'p_and', 'length', 'eccen'], NodeType.CKDE, {'p_black': NodeType.GAUSSIAN,
+    #                                                                                  'p_and': NodeType.GAUSSIAN,
+    #                                                                                  'length': NodeType.GAUSSIAN,
+    #                                                                                  'eccen': NodeType.CKDE})
+    #
+    # vl3 = ValidationLikelihood(train_dataset, k=2, seed=0)
+    # k3 = vl2.local_score('blackpix', ['eccen', 'p_and', 'p_black', 'length'], NodeType.CKDE, {'eccen': NodeType.CKDE,
+    #                                                                                  'p_and': NodeType.GAUSSIAN,
+    #                                                                                  'p_black': NodeType.GAUSSIAN,
+    #                                                                                  'length': NodeType.GAUSSIAN})
+    #
+    # print("k = " + str(k))
+    # print("k2 = " + str(k2))
+    # print("k3 = " + str(k3))
+    #
+    #
 
 
 
