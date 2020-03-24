@@ -17,7 +17,6 @@ class ValidationLikelihood(StructureScore):
                                                            random_state=seed)
         self.k = k
         self.fold_indices = list(KFold(k, shuffle=True, random_state=seed).split(self.data))
-        self.validation_fold_indices = list(KFold(k, shuffle=True, random_state=seed).split(self.validation_data))
 
         super(ValidationLikelihood, self).__init__(data, **kwargs)
 

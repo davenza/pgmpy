@@ -10,6 +10,7 @@ from .NoisyOrModel import NoisyOrModel
 from .LinearGaussianBayesianNetwork import LinearGaussianBayesianNetwork
 from .HybridContinuousModel import HybridContinuousModel
 from .SEM import SEMGraph, SEMAlg, SEM
+from .KDEBayesianNetwork import KDEBayesianNetwork
 
 __all__ = [
     "BayesianModel",
@@ -26,4 +27,5 @@ __all__ = [
     "SEMGraph",
     "SEMAlg",
     "SEM",
+    "KDEBayesianNetwork"
 ]

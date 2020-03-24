@@ -17,23 +17,7 @@ from math import log, pi
 
 import scipy.stats as stats
 
-class _CFFIDoubleArray(object):
-    def __init__(self, array, ffi):
-        self.shape = ffi.new("size_t[]", array.shape)
-        self.strides = ffi.new("size_t[]", array.strides)
-        self.arrayptr = ffi.cast("double*", array.ctypes.data)
-        self.cffiarray = ffi.new('DoubleNumpyArray*', {'ptr': self.arrayptr,
-                                                       'size': array.size,
-                                                       'ndim': array.ndim,
-                                                       'shape': self.shape,
-                                                       'strides': self.strides})
-    def c_ptr(self):
-        return self.cffiarray
-
-class Error:
-    NoError = 0
-    MemoryError = 1
-    NotFinished = 2
+from .ffi_helper import _CFFIDoubleArray, Error
 
 class CKDE_CPD(BaseFactor):
 
@@ -79,7 +63,6 @@ class CKDE_CPD(BaseFactor):
 
         self.n_kde = self.kde_instances.shape[1] - 1
 
-        self.kde = stats.gaussian_kde(kde_instances.T)
         self._initCFFI()
 
     def scotts_factor(self):

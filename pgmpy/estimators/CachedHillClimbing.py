@@ -4,8 +4,8 @@ import numpy as np
 import networkx as nx
 
 from pgmpy.estimators import StructureEstimator, K2Score, GaussianBicScore, BdeuScore, BicScore, BGeScore, \
-    GaussianValidationLikelihood
-from pgmpy.models import BayesianModel
+    GaussianValidationLikelihood, ValidationConditionalKDE
+from pgmpy.models import BayesianModel, KDEBayesianNetwork
 
 
 class CachedHillClimbing(StructureEstimator):
@@ -47,7 +47,8 @@ class CachedHillClimbing(StructureEstimator):
             self.scoring_method = scoring_method
 
         if continuous and not isinstance(self.scoring_method,
-                                         (GaussianBicScore, BGeScore, GaussianValidationLikelihood)):
+                                         (GaussianBicScore, BGeScore, GaussianValidationLikelihood,
+                                          ValidationConditionalKDE)):
             raise TypeError("Selected scoring_method {} incorrect for continuous data.".format(self.scoring_method))
         if not continuous and not isinstance(self.scoring_method, (BdeuScore, BicScore, K2Score)):
             raise TypeError("Selected scoring_method {} incorrect for discrete data".format(self.scoring_method))
@@ -694,11 +695,15 @@ class CachedHillClimbing(StructureEstimator):
         :param callbacks. A list of callbacks to be executed at each iteration of the algorithm.
         :return: Best graph structure found by the algorithm.
         """
-        if not isinstance(self.scoring_method, GaussianValidationLikelihood):
-            raise TypeError("estimate_validation() must be executed using a scoring method ValidationLikelihood.")
+        if not isinstance(self.scoring_method, (GaussianValidationLikelihood, ValidationConditionalKDE)):
+            raise TypeError("estimate_validation() must be executed using a validation score function.")
 
         if start is None:
-            start = BayesianModel()
+            if isinstance(self.scoring_method, GaussianValidationLikelihood):
+                start = BayesianModel()
+            if isinstance(self.scoring_method, ValidationConditionalKDE):
+                start = KDEBayesianNetwork()
+
             start.add_nodes_from(self.nodes)
 
         if callbacks is None:
@@ -827,7 +832,7 @@ class CachedHillClimbing(StructureEstimator):
         if isinstance(self.scoring_method, (GaussianBicScore, BGeScore)):
             return self.estimate_parametric(start=start, tabu_length=tabu_length, max_indegree=max_indegree,
                                             epsilon=epsilon, max_iter=max_iter, callbacks=callbacks)
-        elif isinstance(self.scoring_method, GaussianValidationLikelihood):
+        elif isinstance(self.scoring_method, (GaussianValidationLikelihood, ValidationConditionalKDE)):
             return self.estimate_validation(start=start, tabu_length=tabu_length, max_indegree=max_indegree,
                                             epsilon=epsilon, max_iter=max_iter, patience=patience,
                                             callbacks=callbacks)

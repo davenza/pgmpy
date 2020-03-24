@@ -10,6 +10,7 @@ from pgmpy.estimators.GaussianValidationLikelihood import GaussianValidationLike
 from pgmpy.estimators.BGeScore import BGeScore
 from pgmpy.estimators.CVPredictiveLikelihood import CVPredictiveLikelihood
 from pgmpy.estimators.ValidationLikelihood import ValidationLikelihood
+from pgmpy.estimators.ValidationConditionalKDE import ValidationConditionalKDE
 from pgmpy.estimators.ExhaustiveSearch import ExhaustiveSearch
 from pgmpy.estimators.HillClimbSearch import HillClimbSearch
 from pgmpy.estimators.CachedHillClimbing import CachedHillClimbing
@@ -37,6 +38,7 @@ __all__ = [
     "BGeScore",
     "CVPredictiveLikelihood",
     "ValidationLikelihood",
+    "ValidationConditionalKDE",
     "SEMEstimator",
     "IVEstimator",
 ]

@@ -1,6 +1,7 @@
 from pgmpy.estimators.callbacks import Callback
 
-from pgmpy.estimators import ValidationLikelihood, CVPredictiveLikelihood, GaussianValidationLikelihood
+from pgmpy.estimators import ValidationLikelihood, CVPredictiveLikelihood, GaussianValidationLikelihood, \
+    ValidationConditionalKDE
 from pgmpy.models import HybridContinuousModel
 from pgmpy.factors.continuous import NodeType
 import networkx as nx
@@ -28,7 +29,7 @@ class DrawModel(Callback):
         val_sc = None
         if isinstance(scoring_method, ValidationLikelihood):
             val_sc = lambda n, p: scoring_method.validation_local_score(n, p, model.node_type[n], model.node_type)
-        elif isinstance(scoring_method, GaussianValidationLikelihood):
+        elif isinstance(scoring_method, (GaussianValidationLikelihood, ValidationConditionalKDE)):
             val_sc = scoring_method.validation_local_score
 
         for node in model.nodes:
@@ -64,7 +65,7 @@ class DrawModel(Callback):
                     model_copy.nodes[source]['fillcolor'] = 'yellow'
 
         title = "{}\nScore {:0.3f}".format(type(scoring_method).__name__, total_score)
-        if isinstance(scoring_method, (ValidationLikelihood, GaussianValidationLikelihood)):
+        if isinstance(scoring_method, (ValidationLikelihood, GaussianValidationLikelihood, ValidationConditionalKDE)):
             val_score = 0
             for node in model.nodes:
                 parents = model.get_parents(node)

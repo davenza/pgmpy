@@ -4,6 +4,7 @@ from .LinearGaussianCPD import LinearGaussianCPD
 from pgmpy.factors.continuous.CKDE_CPD import CKDE_CPD
 from .discretize import BaseDiscretizer, RoundingDiscretizer, UnbiasedDiscretizer
 from .NodeType import NodeType
+from pgmpy.factors.continuous.CKDE_CPD import ConditionalKDE
 
 
 __all__ = [
@@ -14,5 +15,6 @@ __all__ = [
     "RoundingDiscretizer",
     "UnbiasedDiscretizer",
     "NodeType",
-    "CKDE_CPD"
+    "CKDE_CPD",
+    "ConditionalKDE"
 ]

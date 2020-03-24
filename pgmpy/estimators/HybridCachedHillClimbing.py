@@ -294,6 +294,7 @@ class HybridCachedHillClimbing(StructureEstimator):
             if model.node_type[other_node] != NodeType.CKDE:
                 continue
 
+            # TODO: This is not necessary because it is included in to_update_arcs.update(self.arcset_to_node(model, child)) of apply_operator()
             if model.has_edge(source, other_node):
                 # Delta score of removing arc 'source' -> 'other_node'
                 update_set.add((source, other_node))
