@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import networkx as nx
 from pgmpy.models import BayesianModel
 from pgmpy.factors.continuous import LinearGaussianCPD, NodeType, CKDE_CPD
@@ -295,7 +296,6 @@ class HybridContinuousModel(BayesianModel):
 
     def save_model(self, filename, save_parameters=False, protocol=pickle.HIGHEST_PROTOCOL):
         if self.cpds and save_parameters:
-            pass
             self.save_parameters = save_parameters
         else:
             self.save_parameters = False
@@ -340,3 +340,11 @@ class HybridContinuousModel(BayesianModel):
             logpdf += cpd.logpdf_dataset(data)
 
         return logpdf
+
+    def sample_dataset(self, N):
+        generated_data = pd.DataFrame({})
+        for node in nx.algorithms.dag.topological_sort(self):
+            cpd = self.get_cpds(node)
+            generated_data[node] = cpd.sample(N, generated_data)
+
+        return generated_data

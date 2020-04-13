@@ -99,7 +99,6 @@ class LinearGaussianCPD(BaseFactor):
 
         return _logpdf
 
-
     def logpdf_dataset(self, dataset):
         means = self.beta[0] + np.sum(self.beta[1:]*dataset.loc[:,self.evidence], axis=1)
         return norm.logpdf(dataset.loc[:,self.variable], means, math.sqrt(self.variance))
@@ -170,3 +169,12 @@ class LinearGaussianCPD(BaseFactor):
 
         if not inplace:
             return phi
+
+    def sample(self, N, parent_values):
+        means = np.full((N,), self.beta[0])
+
+        for ev_idx, ev in enumerate(self.evidence):
+            ev_values = parent_values.loc[:,ev]
+            means += self.beta[1+ev_idx]*ev_values
+
+        return np.random.normal(means, math.sqrt(self.variance))

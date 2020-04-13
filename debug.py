@@ -253,17 +253,19 @@ blocks = blocks.drop(dependent_features, axis=1)
 
 if __name__ == '__main__':
 
-    test_ckde_results('c', [], {})
-    test_ckde_results('c', ['a'], {'a': NodeType.GAUSSIAN})
-    test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.GAUSSIAN})
-    test_ckde_results('c', ['b', 'a'], {'b': NodeType.GAUSSIAN, 'a': NodeType.GAUSSIAN})
-    test_ckde_results('c', ['a'], {'a': NodeType.CKDE})
-    test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.CKDE})
-    test_ckde_results('c', ['b', 'a'], {'b': NodeType.CKDE, 'a': NodeType.CKDE})
-    test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.GAUSSIAN})
-    test_ckde_results('c', ['b', 'a'], {'b': NodeType.GAUSSIAN, 'a': NodeType.CKDE})
+
+
+    # test_ckde_results('c', [], {})
+    # test_ckde_results('c', ['a'], {'a': NodeType.GAUSSIAN})
+    # test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.GAUSSIAN})
+    # test_ckde_results('c', ['b', 'a'], {'b': NodeType.GAUSSIAN, 'a': NodeType.GAUSSIAN})
+    # test_ckde_results('c', ['a'], {'a': NodeType.CKDE})
+    # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.CKDE})
+    # test_ckde_results('c', ['b', 'a'], {'b': NodeType.CKDE, 'a': NodeType.CKDE})
+    # test_ckde_results('c', ['a', 'b'], {'a': NodeType.CKDE, 'b': NodeType.GAUSSIAN})
+    # test_ckde_results('c', ['b', 'a'], {'b': NodeType.GAUSSIAN, 'a': NodeType.CKDE})
     test_ckde_results('c', ['a', 'b'], {'a': NodeType.GAUSSIAN, 'b': NodeType.CKDE})
-    test_ckde_results('c', ['b', 'a'], {'b': NodeType.CKDE, 'a': NodeType.GAUSSIAN})
+    # test_ckde_results('c', ['b', 'a'], {'b': NodeType.CKDE, 'a': NodeType.GAUSSIAN})
 
     # print("all blocks = " + str(len(blocks)))
 

@@ -7,6 +7,7 @@ from pgmpy.models import LinearGaussianBayesianNetwork
 
 import scipy.stats as stats
 from scipy.linalg import solve_triangular
+from scipy.stats import norm
 
 def sample_mixture(prior_prob, means, variances, n_instances):
     p = np.asarray(prior_prob)
@@ -21,6 +22,93 @@ def sample_mixture(prior_prob, means, variances, n_instances):
     res = np.random.normal(m[digitize], np.sqrt(v[digitize]))
 
     return res
+
+def sample_multivariate_mixture(prior_prob, means, cov_matrices, n_instances):
+    p = np.asarray(prior_prob)
+    c = np.cumsum(p)
+    s = np.random.uniform(size=n_instances)
+    digitize = np.digitize(s, c)
+
+    means = [np.asarray(m) for m in means]
+    cov_matrices = [np.asarray(cov) for cov in cov_matrices]
+
+    res = np.empty((n_instances, means[0].shape[0]))
+
+    for i, index in enumerate(digitize):
+        m = means[index]
+        cov = cov_matrices[index]
+
+        res[i] = np.random.multivariate_normal(m, cov, size=1)
+
+    return res
+
+
+def pdf_mixture(prior_prob, means, variances, domain):
+
+    pdf = np.zeros_like(domain)
+
+    for p, m, v in zip(prior_prob, means, variances):
+        pdf += p*norm.pdf(domain, m, np.sqrt(v))
+
+    return pdf
+
+def mixture_data_joint_distributions():
+    prior_prob = np.asarray([0.2, 0.15, 0.3, 0.35])
+    c_means = np.asarray([-0.7, 0, 2.3, 7.8])
+    c_variances = np.asarray([1.8, 1, 0.5, 0.8])
+
+    a_means = 2.3 + 1.2*c_means
+    b_means = -0.7 - 0.3*a_means + 0.6*c_means
+
+    jcovs = []
+
+    for c_var in c_variances:
+        jcov = np.empty((3,3))
+        jcov[0,0] = c_var
+        jcov[0,1] = jcov[1,0] = 1.2*c_var
+        jcov[0,2] = jcov[2,0] = 0.6*jcov[0,0] - 0.3*jcov[0,1]
+
+        jcov[1,1] = 1.2*jcov[0,1] + 0.5**2
+        jcov[1,2] = jcov[2,1] = -0.3*jcov[1,1] + 0.6*jcov[0,1]
+
+        jcov[2,2] = -0.3*jcov[1,2] + 0.6*jcov[0,2] + 0.9**2
+        jcovs.append(jcov)
+
+    return prior_prob, c_means, a_means, b_means, jcovs
+
+
+def mixture_data_cond_distribution(c, a, b):
+    prior_prob, c_means, a_means, b_means, jcovs = mixture_data_joint_distributions()
+
+    conditional_vars = np.empty((len(jcovs),))
+
+    for i, jcov in enumerate(jcovs):
+        conditional_vars[i] = jcov[0,0] - np.dot(jcov[0,1:], np.linalg.inv(jcov[1:,1:])).dot(jcov[1:,0])
+
+    conditional_means = np.empty((len(jcovs),))
+    for i, (c_mean, a_mean, b_mean, jcov) in enumerate(zip(c_means, a_means, b_means, jcovs)):
+        d = np.asarray([a - a_mean, b - b_mean])
+
+        conditional_means[i] = c_mean + np.dot(jcov[0,1:], np.linalg.inv(jcov[1:,1:])).dot(d)
+
+    pdf = np.zeros_like(c)
+
+    for prior_prob, cond_mean, cond_var in zip(prior_prob, conditional_means, conditional_vars):
+        pdf += prior_prob*norm.pdf(c, cond_mean, np.sqrt(cond_var))
+
+    return pdf
+
+def mixture_data_marginal_distribution(c):
+    prior_prob, c_means, a_means, b_means, jcovs = mixture_data_joint_distributions()
+
+    c_vars = [cov[0,0] for cov in jcovs]
+
+    pdf = np.zeros_like(c)
+
+    for prior_prob, c_mean, c_var in zip(prior_prob, c_means, c_vars):
+        pdf += prior_prob*norm.pdf(c, c_mean, np.sqrt(c_var))
+
+    return pdf
 
 
 def mixture_data_f(n_instances):

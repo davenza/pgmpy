@@ -21,20 +21,24 @@ class DrawModel(Callback):
 
         total_score = 0
 
-        if isinstance(scoring_method, (CVPredictiveLikelihood, ValidationLikelihood)):
-            sc = lambda n, p: scoring_method.local_score(n, p, model.node_type[n], model.node_type)
-        else:
-            sc = scoring_method.local_score
+        scoring_isnot_none = scoring_method is not None
 
-        val_sc = None
-        if isinstance(scoring_method, ValidationLikelihood):
-            val_sc = lambda n, p: scoring_method.validation_local_score(n, p, model.node_type[n], model.node_type)
-        elif isinstance(scoring_method, (GaussianValidationLikelihood, ValidationConditionalKDE)):
-            val_sc = scoring_method.validation_local_score
+        if scoring_isnot_none:
+            if isinstance(scoring_method, (CVPredictiveLikelihood, ValidationLikelihood)):
+                sc = lambda n, p: scoring_method.local_score(n, p, model.node_type[n], model.node_type)
+            else:
+                sc = scoring_method.local_score
+
+            val_sc = None
+            if isinstance(scoring_method, ValidationLikelihood):
+                val_sc = lambda n, p: scoring_method.validation_local_score(n, p, model.node_type[n], model.node_type)
+            elif isinstance(scoring_method, (GaussianValidationLikelihood, ValidationConditionalKDE)):
+                val_sc = scoring_method.validation_local_score
 
         for node in model.nodes:
             parents = model.get_parents(node)
-            total_score += sc(node, parents)
+            if scoring_isnot_none:
+                total_score += sc(node, parents)
 
         if isinstance(model, HybridContinuousModel):
             for node in model_copy.nodes:
@@ -65,16 +69,19 @@ class DrawModel(Callback):
                     model_copy.nodes[source]['fillcolor'] = 'yellow'
 
         title = "{}\nScore {:0.3f}".format(type(scoring_method).__name__, total_score)
-        if isinstance(scoring_method, (ValidationLikelihood, GaussianValidationLikelihood, ValidationConditionalKDE)):
-            val_score = 0
-            for node in model.nodes:
-                parents = model.get_parents(node)
-                val_score += val_sc(node, parents)
 
-            title += "\nValidation Score: {:0.3f}".format(val_score)
+        if scoring_isnot_none:
+            if isinstance(scoring_method, (ValidationLikelihood, GaussianValidationLikelihood, ValidationConditionalKDE)):
+                val_score = 0
+                for node in model.nodes:
+                    parents = model.get_parents(node)
+                    val_score += val_sc(node, parents)
+
+                title += "\nValidation Score: {:0.3f}".format(val_score)
 
         a = nx.nx_agraph.to_agraph(model_copy)
-        a.graph_attr.update(label=title, labelloc="t", fontsize='25')
+        if scoring_isnot_none:
+            a.graph_attr.update(label=title, labelloc="t", fontsize='25')
         a.write('{}/{:06d}.dot'.format(self.folder, iter_no))
         a.clear()
 

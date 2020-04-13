@@ -37,11 +37,17 @@ class LinearGaussianBayesianNetwork(BayesianModel):
         with open(filename, 'rb') as pickle_file:
             o = pickle.load(pickle_file)
 
-        if type(o) is BayesianModel:
+        if type(o) is LinearGaussianBayesianNetwork:
+            out = o
+        elif type(o) is BayesianModel:
             out = LinearGaussianBayesianNetwork(o.edges)
             out.add_nodes_from(o)
         else:
             raise ValueError("Pickle object is not a BayesianModel.")
+
+        if not hasattr(out, 'cpds'):
+            out.cpds = []
+
         return out
 
     def add_cpds(self, *cpds):
@@ -338,3 +344,11 @@ class LinearGaussianBayesianNetwork(BayesianModel):
             logpdf += cpd.logpdf_dataset(data)
 
         return logpdf
+
+    def sample_dataset(self, N):
+        generated_data = pd.DataFrame({})
+        for node in nx.algorithms.dag.topological_sort(self):
+            cpd = self.get_cpds(node)
+            generated_data[node] = cpd.sample(N, generated_data)
+
+        return generated_data

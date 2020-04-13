@@ -784,16 +784,40 @@ class BayesianModel(DAG):
         blanket_nodes.remove(node)
         return list(blanket_nodes)
 
-    def save_model(self, filename, protocol=pickle.HIGHEST_PROTOCOL):
+    def save_model(self, filename, save_parameters=False, protocol=pickle.HIGHEST_PROTOCOL):
+        if self.cpds and save_parameters:
+            self.save_parameters = save_parameters
+        else:
+            self.save_parameters = False
+
         if filename[-4:] != '.pkl':
             filename += '.pkl'
+
         with open(filename, 'wb') as pickle_file:
             pickle.dump(self, pickle_file, protocol)
 
+        del self.save_parameters
+
+    def __getstate__(self):
+        if self.save_parameters:
+            state = self.__dict__.copy()
+            del state['save_parameters']
+            return self.__dict__
+        else:
+            state = self.__dict__.copy()
+            del state['save_parameters']
+            del state['cpds']
+            return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
     @classmethod
     def load_model(cls, filename):
-
         with open(filename, 'rb') as pickle_file:
             o = pickle.load(pickle_file)
+
+        if not hasattr(o, 'cpds'):
+            o.cpds = []
 
         return o

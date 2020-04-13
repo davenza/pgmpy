@@ -9,13 +9,14 @@ from pgmpy.factors.base import BaseFactor
 from pgmpy.factors.continuous.NodeType import NodeType
 
 from scipy.special import logsumexp
+from scipy.stats import norm, multivariate_normal
 
 from ._ffi import ffi, lib
 import atexit
 
 from math import log, pi
 
-import scipy.stats as stats
+import pandas as pd
 
 from .ffi_helper import _CFFIDoubleArray, Error
 
@@ -407,8 +408,294 @@ class CKDE_CPD(BaseFactor):
         ['X1', 'X2', 'X3']
         """
         # TODO: Is this a real copy?
-        copy_cpd = CKDE_CPD(self.variable, self.gaussian_cpds, self.kde_instances, list(self.evidence))
+        df_kde = pd.DataFrame(self.kde_instances, columns=[self.variable] + self.kde_evidence)
+        ev_type = {}
+
+        for e in self.gaussian_evidence:
+            ev_type[e] = NodeType.GAUSSIAN
+
+        for e in self.kde_evidence:
+            ev_type[e] = NodeType.CKDE
+
+        copy_cpd = CKDE_CPD(self.variable, self.gaussian_cpds, df_kde, list(self.evidence), evidence_type=ev_type)
         return copy_cpd
 
     def __str__(self):
         pass
+
+    def sample(self, N, parent_values):
+        jcov = self.joint_cov_matrix()
+        means = np.empty((self.n, len(self.evidence)))
+        means[:, :self.n_kde] = self.kde_instances[:,1:]
+        means[:,self.n_kde:] = self.means_gaussian(self.kde_instances)
+
+        sampled = np.empty((N,))
+
+        t = np.dot(jcov[0,1:], np.linalg.inv(jcov[1:,1:]))
+
+        conditional_var = jcov[0,0] - t.dot(jcov[1:,0])
+
+        marg_cov = jcov[1:, 1:]
+
+        if not self.evidence:
+            random_numbers = np.random.randint(low=0, high=self.n, size=N)
+
+            sampled[:] = np.random.normal(self.kde_instances[random_numbers, 0],
+                                          conditional_var)
+        else:
+            for i, (_, row) in enumerate(parent_values.iterrows()):
+                r = row.loc[self.kde_evidence + self.gaussian_evidence].to_numpy()
+                l = multivariate_normal.logpdf(means, r, marg_cov)
+
+                weights = np.exp(l - logsumexp(l))
+                cumsum_weights = np.cumsum(weights)
+
+                random_number = np.random.uniform(size=1)
+                index = np.digitize(random_number, cumsum_weights)[0]
+
+                conditional_mean = self.kde_instances[index,0] + t.dot(r - means[index,:])
+                sampled[i] = np.random.normal(conditional_mean, np.sqrt(conditional_var), size=1)
+
+        return sampled
+
+    def sample_distribution(self, domain, parent_values):
+        jcov = self.joint_cov_matrix()
+        means = np.empty((self.n, len(self.evidence)))
+        means[:, :self.n_kde] = self.kde_instances[:,1:]
+        means[:,self.n_kde:] = self.means_gaussian(self.kde_instances)
+
+        t = np.dot(jcov[0,1:], np.linalg.inv(jcov[1:,1:]))
+        conditional_var = jcov[0,0] - t.dot(jcov[1:,0])
+
+        marg_cov = jcov[1:, 1:]
+
+        r = parent_values.loc[self.kde_evidence + self.gaussian_evidence].to_numpy()
+        l = multivariate_normal.logpdf(means, r, marg_cov)
+
+        weights = np.exp(l - logsumexp(l))
+        conditional_means = self.kde_instances[:,0] + t.dot((r - means).T)
+
+        pdf = np.zeros_like(domain)
+        for i, d in enumerate(domain):
+            pdf[i] += np.sum(weights*norm.pdf(d, conditional_means, np.sqrt(conditional_var)))
+
+        return pdf
+
+    def joint_logpdf_dataset(self, dataset):
+        logpdf = self.kde_logpdf(dataset.loc[:,[self.variable] + self.kde_evidence])
+
+        for i, gaussian_cpd in enumerate(self.gaussian_cpds):
+            logpdf += gaussian_cpd.logpdf_dataset(dataset)
+
+        return logpdf
+
+    def covariance_iy(self):
+        cov_iy = np.empty((self.n_gaussian,))
+
+        var_xi = self.covariance[0,0]
+        for i, cpd in enumerate(self.gaussian_cpds):
+
+            cov_iy[i] = cpd.beta[1+cpd.evidence.index(self.variable)]*var_xi
+
+            for j, kde_parent in enumerate(self.kde_evidence):
+                cov_iy[i] += cpd.beta[1+cpd.evidence.index(kde_parent)]*self.covariance[0,1+j]
+
+            for k in range(i):
+                cov_iy[i] += cpd.beta[1+cpd.evidence.index(self.gaussian_evidence[k])]*cov_iy[k]
+
+        return cov_iy
+
+    def covariance_zy(self):
+        cov_zy = np.empty((self.n_kde, self.n_gaussian))
+
+        for kde_index, kde_var in enumerate(self.kde_evidence):
+            for i,cpd in enumerate(self.gaussian_cpds):
+
+                cov_zy[kde_index, i] = cpd.beta[1+cpd.evidence.index(self.variable)]*\
+                                                    self.covariance[0, 1+kde_index]
+
+                for j, kde_ev_var in enumerate(self.kde_evidence):
+                    cov_zy[kde_index, i] += cpd.beta[1+cpd.evidence.index(kde_ev_var)]*\
+                                                        self.covariance[1+kde_index, 1+j]
+
+                for k in range(i):
+                    cov_zy[kde_index, i] += cpd.beta[1+cpd.evidence.index(self.gaussian_evidence[k])]*\
+                                            cov_zy[kde_index, k]
+
+        return cov_zy
+
+    def linear_conditional_covariance(self):
+        u = np.eye(self.n_gaussian)
+        d = np.zeros((self.n_gaussian, self.n_gaussian))
+
+        for cpd in self.gaussian_cpds:
+            var_index = self.gaussian_evidence.index(cpd.variable)
+
+            for ev_idx, ev in enumerate(cpd.evidence):
+                if ev in self.gaussian_evidence:
+                    ev_cpd_index = self.gaussian_evidence.index(ev)
+                    u[var_index, ev_cpd_index] = -cpd.beta[1+ev_idx]
+
+            d[var_index, var_index] = cpd.variance
+
+        inv_u = np.linalg.inv(u)
+
+        m = np.dot(inv_u, d).dot(inv_u.T)
+        return m
+
+    def means_gaussian(self, evidence):
+        evidence_2d = np.atleast_2d(evidence)
+        means = np.empty((evidence_2d.shape[0], self.n_gaussian))
+
+        for i, cpd in enumerate(self.gaussian_cpds):
+            means[:,i] = cpd.beta[0]
+
+            ev_indices = 1 + np.asarray([cpd.evidence.index(self.variable)] +
+                                        [cpd.evidence.index(e) for e in self.kde_evidence])
+            means[:,i] += np.dot(cpd.beta[ev_indices], evidence_2d.T)
+
+            if i > 0:
+                previous_gaussians = [c.variable for c in self.gaussian_cpds[:i]]
+                previous_gaussians_indices = 1 + np.asarray([cpd.evidence.index(p) for p in previous_gaussians])
+                means[:,i] += np.dot(cpd.beta[previous_gaussians_indices], means[:,:i].T)
+
+        return means
+
+    def joint_cov_matrix(self):
+        jcov = np.empty((len(self.variables), len(self.variables)))
+
+        jcov[:self.d, :self.d] = self.covariance
+
+        jcov[self.d:,0] = jcov[0, self.d:] = self.covariance_iy()
+
+        jcov[1:self.d, self.d:] = self.covariance_zy()
+        jcov[self.d:, 1:self.d] = jcov[1:self.d, self.d:].T
+
+        regression_cond_cov = self.linear_conditional_covariance()
+        s = jcov[self.d:, :self.d]
+        jcov[self.d:, self.d:] = regression_cond_cov + np.dot(s, self.inv_cov).dot(s.T)
+
+        return jcov
+
+    def cond_logpdf_dataset(self, dataset):
+        jcov = self.joint_cov_matrix()
+        means = np.empty((self.n, len(self.variables)))
+
+        logpdf = np.empty((dataset.shape[0],))
+
+        r = np.dot(jcov[self.d:, :self.d], np.linalg.inv(jcov[:self.d, :self.d]))
+        for i,(_, row) in enumerate(dataset.iterrows()):
+            means[:, :self.d] = self.kde_instances
+
+            d = row.loc[[self.variable] + self.kde_evidence].to_numpy() - self.kde_instances
+
+            means[:,self.d:] = self.means_gaussian(row.loc[[self.variable] + self.kde_evidence]) - \
+                               r.dot(d.T).T
+
+            l = multivariate_normal.logpdf(means, row.loc[[self.variable] + self.kde_evidence + self.gaussian_evidence],
+                                           jcov)
+
+            l_marg = multivariate_normal.logpdf(means[:,1:], row.loc[self.kde_evidence + self.gaussian_evidence], jcov[1:,1:])
+
+            logpdf[i] = logsumexp(l) - logsumexp(l_marg)
+
+        return logpdf
+
+    def conduni_logpdf_dataset(self, dataset):
+        jcov = self.joint_cov_matrix()
+        means = np.empty((self.n, len(self.variables)))
+
+        logpdf = np.empty((dataset.shape[0],))
+
+        t = np.dot(jcov[0,1:], np.linalg.inv(jcov[1:,1:]))
+        r = np.dot(jcov[self.d:, :self.d], np.linalg.inv(jcov[:self.d, :self.d]))
+
+        cond_var = jcov[0,0] - t.dot(jcov[1:, 0])
+        for i,(_, row) in enumerate(dataset.iterrows()):
+            means[:, :self.d] = self.kde_instances
+
+            d = row.loc[[self.variable] + self.kde_evidence].to_numpy() - self.kde_instances
+
+            means[:,self.d:] = self.means_gaussian(row.loc[[self.variable] + self.kde_evidence]) - \
+                               r.dot(d.T).T
+
+
+            p = row.loc[self.kde_evidence + self.gaussian_evidence].to_numpy() - means[:,1:]
+
+            conditional_means = self.kde_instances[:,0] + t.dot(p.T)
+
+            l = norm.logpdf(row.loc[self.variable], conditional_means, np.sqrt(cond_var))
+            l_marg = multivariate_normal.logpdf(means[:,1:], row.loc[self.kde_evidence + self.gaussian_evidence], jcov[1:,1:])
+
+            # w = l_marg - logsumexp(l_marg)
+            logpdf[i] = logsumexp(l+l_marg) - logsumexp(l_marg)
+
+        return logpdf
+
+    def cond_joint_logpdf_dataset(self, dataset):
+        jcov = self.joint_cov_matrix()
+        means = np.empty((self.n, len(self.variables)))
+
+        logpdf = np.empty((dataset.shape[0],))
+
+        r = np.dot(jcov[self.d:, :self.d], np.linalg.inv(jcov[:self.d, :self.d]))
+        for i,(_, row) in enumerate(dataset.iterrows()):
+            means[:, :self.d] = self.kde_instances
+
+            d = row.loc[[self.variable] + self.kde_evidence].to_numpy() - self.kde_instances
+
+            means[:,self.d:] = self.means_gaussian(row.loc[[self.variable] + self.kde_evidence]) - \
+                               r.dot(d.T).T
+
+            l = multivariate_normal.logpdf(means, row.loc[[self.variable] + self.kde_evidence + self.gaussian_evidence],
+                                           jcov)
+
+            logpdf[i] = logsumexp(l) - np.log(self.n)
+
+        return logpdf
+
+    def conduni_joint_logpdf_dataset(self, dataset):
+        jcov = self.joint_cov_matrix()
+        means = np.empty((self.n, len(self.variables)))
+
+        logpdf = np.empty((dataset.shape[0],))
+
+        t = np.dot(jcov[0,1:], np.linalg.inv(jcov[1:,1:]))
+        r = np.dot(jcov[self.d:, :self.d], np.linalg.inv(jcov[:self.d, :self.d]))
+
+        cond_var = jcov[0,0] - t.dot(jcov[1:, 0])
+        for i,(_, row) in enumerate(dataset.iterrows()):
+            means[:, :self.d] = self.kde_instances
+
+            d = row.loc[[self.variable] + self.kde_evidence].to_numpy() - self.kde_instances
+
+            means[:,self.d:] = self.means_gaussian(row.loc[[self.variable] + self.kde_evidence]) - \
+                               r.dot(d.T).T
+            import pandas as pd
+            kdf = pd.DataFrame(self.kde_instances, columns=[self.variable] + self.kde_evidence)
+            self.means_gaussian(kdf.iloc[0,:])
+            p = row.loc[self.kde_evidence + self.gaussian_evidence].to_numpy() - means[:,1:]
+
+            conditional_means = self.kde_instances[:,0] + t.dot(p.T)
+
+            l_cond = norm.logpdf(row.loc[self.variable], conditional_means, np.sqrt(cond_var))
+            l_marg = multivariate_normal.logpdf(means[:,1:], row.loc[self.kde_evidence + self.gaussian_evidence], jcov[1:,1:])
+
+            logpdf[i] = logsumexp(l_cond+l_marg) - np.log(self.n)
+
+        return logpdf
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+
+        del state['pro_que']
+        del state['_ffi_gaussian_regressors']
+        del state['_gaussian_regressors']
+        del state['kdedensity']
+        del state['ckde']
+
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._initCFFI()
