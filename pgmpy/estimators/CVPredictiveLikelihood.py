@@ -32,7 +32,7 @@ class CVPredictiveLikelihood(StructureScore):
                 cpd = MaximumLikelihoodEstimator.gaussian_estimate_with_parents(variable, parents, train_data)
                 if cpd is None:
                     return np.nan
-            elif variable_type == NodeType.CKDE:
+            elif variable_type == NodeType.SPBN:
                 try:
                     cpd = MaximumLikelihoodEstimator.ckde_estimate_with_parents(variable, parents, parent_types,
                                                                                 train_data)

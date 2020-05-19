@@ -4,7 +4,7 @@ import numpy as np
 
 from pgmpy.estimators import ParameterEstimator
 from pgmpy.factors.discrete import TabularCPD
-from pgmpy.factors.continuous import LinearGaussianCPD, NodeType, CKDE_CPD
+from pgmpy.factors.continuous import LinearGaussianCPD, NodeType, CKDE_CPD, ConditionalKDE
 from pgmpy.models import BayesianModel, LinearGaussianBayesianNetwork, HybridContinuousModel
 
 
@@ -129,8 +129,10 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
         elif isinstance(self.model, HybridContinuousModel):
             if self.model.node_type[node] == NodeType.GAUSSIAN:
                 return self.gaussian_estimate(node)
-            elif self.model.node_type[node] == NodeType.CKDE:
+            elif self.model.node_type[node] == NodeType.SPBN:
                 return self.ckde_estimate(node)
+            elif self.model.node_type[node] == NodeType.SPBN_STRICT:
+                return self.spbn_strict_estimate(node)
         elif isinstance(self.model, BayesianModel):
             return self.discrete_estimate(node)
 
@@ -225,3 +227,13 @@ class MaximumLikelihoodEstimator(ParameterEstimator):
             chain_rule_parents.append(g)
 
         return CKDE_CPD(node, gaussian_cpds, data.loc[:, [node] + ckde_parents], evidence=parents, evidence_type=parent_types)
+
+    def spbn_strict_estimate(self, node):
+        parents = sorted(self.model.get_parents(node))
+        node_data = self.data[[node] + parents].dropna()
+        return MaximumLikelihoodEstimator.spbn_strict_estimate_with_parents(node, parents, node_data)
+
+
+    @classmethod
+    def spbn_strict_estimate_with_parents(cls, node, parents, data):
+        return ConditionalKDE(node, data, evidence=parents)

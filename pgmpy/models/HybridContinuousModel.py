@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 from pgmpy.models import BayesianModel
-from pgmpy.factors.continuous import LinearGaussianCPD, NodeType, CKDE_CPD
+from pgmpy.factors.continuous import LinearGaussianCPD, NodeType, CKDE_CPD, ConditionalKDE
 
 import logging
 import pickle
@@ -125,9 +125,12 @@ class HybridContinuousModel(BayesianModel):
             if self.node_type[cpd.variable] == NodeType.GAUSSIAN and not isinstance(cpd, LinearGaussianCPD):
                 raise ValueError("Only LinearGaussianCPD can be added for {} node types.",
                                  NodeType.str(NodeType.GAUSSIAN))
-            elif self.node_type[cpd.variable] == NodeType.CKDE and not isinstance(cpd, CKDE_CPD):
+            elif self.node_type[cpd.variable] == NodeType.SPBN and not isinstance(cpd, CKDE_CPD):
                 raise ValueError("Only CKDE_CPD can be added for {} node types.",
-                                 NodeType.str(NodeType.CKDE))
+                                 NodeType.str(NodeType.SPBN))
+            elif self.node_type[cpd.variable] == NodeType.SPBN_STRICT and not isinstance(cpd, ConditionalKDE):
+                raise ValueError("Only ConditionalKDE can be added for {} node types.",
+                                 NodeType.str(NodeType.SPBN_STRICT))
 
             if set(cpd.variables) - set(cpd.variables).intersection(set(self.nodes())):
                 raise ValueError("CPD defined on variable not in the model", cpd)
@@ -224,9 +227,12 @@ class HybridContinuousModel(BayesianModel):
             if self.node_type[cpd.variable] == NodeType.GAUSSIAN and not isinstance(cpd, LinearGaussianCPD):
                 raise ValueError("Only LinearGaussianCPD can be added for {} node types.",
                                  NodeType.str(NodeType.GAUSSIAN))
-            elif self.node_type[cpd.variable] == NodeType.CKDE and not isinstance(cpd, CKDE_CPD):
+            elif self.node_type[cpd.variable] == NodeType.SPBN and not isinstance(cpd, CKDE_CPD):
                 raise ValueError("Only CKDE_CPD can be added for {} node types.",
-                                 NodeType.str(NodeType.CKDE))
+                                 NodeType.str(NodeType.SPBN))
+            elif self.node_type[cpd.variable] == NodeType.SPBN_STRICT and not isinstance(cpd, ConditionalKDE):
+                raise ValueError("Only ConditionalKDE can be added for {} node types.",
+                                 NodeType.str(NodeType.SPBN_STRICT))
 
 
             if set(cpd.evidence) != set(self.get_parents(node)):
@@ -276,23 +282,6 @@ class HybridContinuousModel(BayesianModel):
         Implemented predict.
         """
         pass
-        # if set(data.columns) == set(self.nodes()):
-        #     raise ValueError("No variable missing in data. Nothing to predict")
-        #
-        # elif set(data.columns) - set(self.nodes()):
-        #     raise ValueError("Data has variables which are not in the model")
-        #
-        # joint = self.to_joint_gaussian()
-        #
-        # pred_values = defaultdict(list)
-        #
-        # for _, data_point in data.iterrows():
-        #     reduced = joint.reduce(data_point.to_dict(), inplace=False)
-        #
-        #     for k, v in zip(reduced.variables, reduced.mean[0]):
-        #         pred_values[k].append(v)
-        #
-        # return pd.DataFrame(pred_values, index=data.index)
 
     def save_model(self, filename, save_parameters=False, protocol=pickle.HIGHEST_PROTOCOL):
         if self.cpds and save_parameters:

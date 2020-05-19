@@ -13,6 +13,8 @@ from scipy.special import logsumexp
 from ._ffi import ffi, lib
 import atexit
 
+import scipy.stats as spstats
+
 from math import log, pi
 
 from .ffi_helper import _CFFIDoubleArray, Error
@@ -212,6 +214,25 @@ class ConditionalKDE(BaseFactor):
     def logpdf_dataset(self, dataset):
         return self.conditional_logpdf(dataset.loc[:,self.variables])
 
+    def logpdf_dataset2(self, dataset):
+
+        hat = self.joint_covariance[0, 1:].dot(np.linalg.inv(self.joint_covariance[1:, 1:]))
+        mean_constant = self._kde_joint_data[:, 0] - self._kde_joint_data[:, 1:].dot(hat)
+
+        cond_var = self.joint_covariance[0, 0] - hat.dot(self.joint_covariance[1:, 0])
+        logpdf = np.empty((dataset.shape[0],))
+
+        for i,(_, row) in enumerate(dataset.iterrows()):
+            lw = spstats.multivariate_normal(row.loc[self.evidence], self.joint_covariance[1:,1:]).logpdf(self._kde_joint_data[:,1:])
+            w = lw - logsumexp(lw)
+
+            cond_means = mean_constant + hat.dot(row.loc[self.evidence])
+            l = spstats.norm(cond_means, np.sqrt(cond_var)).logpdf(row.loc[self.variable])
+
+            logpdf[i] = logsumexp(w + l)
+
+        return logpdf
+
     def copy(self):
         """
         Returns a copy of the distribution.
@@ -236,3 +257,47 @@ class ConditionalKDE(BaseFactor):
 
     def __str__(self):
         pass
+
+
+    def sample(self, N, parent_values):
+        sampled = np.empty((N,))
+
+        if not self.evidence:
+            random_numbers = np.random.randint(low=0, high=self.n, size=N)
+
+            sampled = np.random.normal(self._kde_joint_data[random_numbers, 0],
+                                       self.joint_covariance[0,0])
+        else:
+            hat = self.joint_covariance[0, 1:].dot(np.linalg.inv(self.joint_covariance[1:, 1:]))
+            cond_var = self.joint_covariance[0, 0] - hat.dot(self.joint_covariance[1:, 0])
+            print("Joint cov:")
+            print(self.joint_covariance)
+            print("cond_var: " + str(cond_var))
+            for i, (_, row) in enumerate(parent_values.iterrows()):
+                lw = spstats.multivariate_normal(row.loc[self.evidence], self.joint_covariance[1:,1:]).logpdf(self._kde_joint_data[:,1:])
+
+                w = np.exp(lw - logsumexp(lw))
+                cumsum_w = np.cumsum(w)
+
+                random_number = np.random.uniform(size=1)
+                index = np.digitize(random_number, cumsum_w)[0]
+
+                conditional_mean = self._kde_joint_data[index,0] + hat.dot(
+                                                                row.loc[self.evidence].to_numpy()
+                                                                - self._kde_joint_data[index, 1:])
+                sampled[i] = np.random.normal(conditional_mean, np.sqrt(cond_var), size=1)
+
+        return sampled
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+
+        del state['pro_que']
+        del state['joint_kdedensity']
+        del state['marg_kdedensity']
+
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self._initCFFI()

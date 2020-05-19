@@ -74,7 +74,7 @@ class LinearGaussianCPD(BaseFactor):
         self.evidence = evidence
         self.variables = [variable] + evidence
 
-        self.beta = np.asarray(beta)
+        self.beta = np.asarray(beta, dtype=np.float64)
         self.variance = variance
 
         super(LinearGaussianCPD, self).__init__()

@@ -10,6 +10,10 @@ from pgmpy.factors.continuous import ConditionalKDE
 
 class ValidationConditionalKDE(StructureScore):
 
+    """
+    This score is valid for KDE Bayesian networks.
+    """
+
     def __init__(self, data, validation_ratio=0.2, k=10, seed=0, **kwargs):
         self.seed = seed
         self.validation_ratio = validation_ratio

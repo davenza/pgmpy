@@ -12,10 +12,10 @@ N_MODEL = 1000
 
 model = HybridContinuousModel()
 model.add_edges_from([('a', 'c'), ('b', 'c'), ('c', 'd'), ('d', 'e')], node_type={'a': NodeType.GAUSSIAN,
-                                                                                        'b': NodeType.CKDE,
-                                                                                        'c': NodeType.CKDE,
+                                                                                        'b': NodeType.SPBN,
+                                                                                        'c': NodeType.SPBN,
                                                                                         'd': NodeType.GAUSSIAN,
-                                                                                        'e': NodeType.CKDE
+                                                                                        'e': NodeType.SPBN
                                                                                         })
 
 a_cpd = LinearGaussianCPD('a', [0.5], 1, evidence=[])
@@ -34,7 +34,7 @@ c_instances = exp_helper.sample_multivariate_mixture([0.7, 0.3], [[-1, -1], [1, 
                                                      ], N_MODEL)
 c_instances_df = pd.DataFrame(c_instances, columns=['c', 'b'])
 c_cpd = CKDE_CPD('c', gaussian_cpds=[c_gaussiancpd_a], kde_instances=c_instances_df,
-                 evidence=['a', 'b'], evidence_type={'a': NodeType.GAUSSIAN, 'b': NodeType.CKDE})
+                 evidence=['a', 'b'], evidence_type={'a': NodeType.GAUSSIAN, 'b': NodeType.SPBN})
 
 d_cpd = LinearGaussianCPD('d', [-2.1, -0.6], 1.5, evidence=['c'])
 

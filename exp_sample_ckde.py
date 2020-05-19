@@ -14,18 +14,29 @@ N_TEST = 10
 train_data = exp_helper.mixture_data_f(N_TRAIN)
 test_data = exp_helper.mixture_data_f(N_TEST)
 
-a_value = 12.5
-b_value = 0
 
 plt.scatter(train_data.loc[:, 'a'].to_numpy(), train_data.loc[:,'b'].to_numpy(),
             c=train_data.loc[:,'c'].to_numpy())
 
-plt.scatter(a_value, b_value, c="red")
+
 
 
 
 ckde = MaximumLikelihoodEstimator.ckde_estimate_with_parents('c', ['a', 'b'], {'a': NodeType.GAUSSIAN,
-                                                                               'b': NodeType.GAUSSIAN}, train_data)
+                                                                               'b': NodeType.SPBN}, train_data)
+
+a_value = 12.5
+b_value = 0
+
+plt.figure()
+means, weights = ckde.sample_weights(pd.DataFrame({'a': [a_value], 'b': [b_value]}))
+
+plt.scatter(means[:,1],
+            means[:,0],
+            c=weights)
+plt.scatter(a_value, b_value, c="red")
+
+
 
 domain = np.linspace(-3, 10, 2000)
 

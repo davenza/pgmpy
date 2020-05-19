@@ -1,7 +1,7 @@
 from pgmpy.estimators.callbacks import Callback
 
 from pgmpy.estimators import ValidationLikelihood, CVPredictiveLikelihood, GaussianValidationLikelihood, \
-    ValidationConditionalKDE
+    ValidationConditionalKDE, ValidationSPBNStrict
 from pgmpy.models import HybridContinuousModel
 from pgmpy.factors.continuous import NodeType
 import networkx as nx
@@ -26,12 +26,16 @@ class DrawModel(Callback):
         if scoring_isnot_none:
             if isinstance(scoring_method, (CVPredictiveLikelihood, ValidationLikelihood)):
                 sc = lambda n, p: scoring_method.local_score(n, p, model.node_type[n], model.node_type)
+            elif isinstance(scoring_method, ValidationSPBNStrict):
+                sc = lambda n, p: scoring_method.local_score(n, p, model.node_type[n])
             else:
                 sc = scoring_method.local_score
 
             val_sc = None
             if isinstance(scoring_method, ValidationLikelihood):
                 val_sc = lambda n, p: scoring_method.validation_local_score(n, p, model.node_type[n], model.node_type)
+            elif isinstance(scoring_method, ValidationSPBNStrict):
+                val_sc = lambda n, p: scoring_method.validation_local_score(n, p, model.node_type[n])
             elif isinstance(scoring_method, (GaussianValidationLikelihood, ValidationConditionalKDE)):
                 val_sc = scoring_method.validation_local_score
 
@@ -42,9 +46,14 @@ class DrawModel(Callback):
 
         if isinstance(model, HybridContinuousModel):
             for node in model_copy.nodes:
-                if model_copy.node_type[node] == NodeType.CKDE:
+                if model_copy.node_type[node] == NodeType.SPBN:
                     model_copy.nodes[node]['style'] = 'filled'
                     model_copy.nodes[node]['fillcolor'] = 'gray'
+                if model_copy.node_type[node] == NodeType.SPBN_STRICT:
+                    model_copy.nodes[node]['style'] = 'filled'
+                    model_copy.nodes[node]['fillcolor'] = 'black'
+                    model_copy.nodes[node]['fontcolor'] = 'white'
+
 
         if operation is not None:
             op, source, dest, score = operation
@@ -63,15 +72,18 @@ class DrawModel(Callback):
                 model_copy.nodes[source]['style'] = 'filled'
                 model_copy.nodes[source]['label'] = "{}\n{:0.3f}".format(source, score)
 
-                if dest == NodeType.CKDE:
+                if dest == NodeType.SPBN:
                     model_copy.nodes[source]['fillcolor'] = 'darkolivegreen1'
+                if dest == NodeType.SPBN_STRICT:
+                    model_copy.nodes[source]['fillcolor'] = 'lightskyblue'
+                    model_copy.nodes[source].pop('fontcolor', None)
                 elif dest == NodeType.GAUSSIAN:
                     model_copy.nodes[source]['fillcolor'] = 'yellow'
 
         title = "{}\nScore {:0.3f}".format(type(scoring_method).__name__, total_score)
 
         if scoring_isnot_none:
-            if isinstance(scoring_method, (ValidationLikelihood, GaussianValidationLikelihood, ValidationConditionalKDE)):
+            if isinstance(scoring_method, (ValidationLikelihood, GaussianValidationLikelihood, ValidationConditionalKDE, ValidationSPBNStrict)):
                 val_score = 0
                 for node in model.nodes:
                     parents = model.get_parents(node)

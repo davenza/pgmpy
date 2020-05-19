@@ -11,10 +11,12 @@ from pgmpy.estimators.BGeScore import BGeScore
 from pgmpy.estimators.CVPredictiveLikelihood import CVPredictiveLikelihood
 from pgmpy.estimators.ValidationLikelihood import ValidationLikelihood
 from pgmpy.estimators.ValidationConditionalKDE import ValidationConditionalKDE
+from pgmpy.estimators.ValidationSPBNStrict import ValidationSPBNStrict
 from pgmpy.estimators.ExhaustiveSearch import ExhaustiveSearch
 from pgmpy.estimators.HillClimbSearch import HillClimbSearch
 from pgmpy.estimators.CachedHillClimbing import CachedHillClimbing
 from pgmpy.estimators.HybridCachedHillClimbing import HybridCachedHillClimbing
+from pgmpy.estimators.SPBNStrictCachedHillClimbing import HybridCachedHillClimbingStrict
 from pgmpy.estimators.ConstraintBasedEstimator import ConstraintBasedEstimator
 from pgmpy.estimators.SEMEstimator import SEMEstimator, IVEstimator
 
@@ -28,6 +30,7 @@ __all__ = [
     "HillClimbSearch",
     "CachedHillClimbing",
     "HybridCachedHillClimbing",
+    "HybridCachedHillClimbingStrict",
     "ConstraintBasedEstimator",
     "StructureScore",
     "K2Score",
@@ -39,6 +42,8 @@ __all__ = [
     "CVPredictiveLikelihood",
     "ValidationLikelihood",
     "ValidationConditionalKDE",
+    "ValidationConditionalKDE",
+    "ValidationSPBNStrict",
     "SEMEstimator",
     "IVEstimator",
 ]

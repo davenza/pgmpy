@@ -45,7 +45,7 @@ class CKDE_CPD(BaseFactor):
         for idx, e in enumerate(evidence):
             if evidence_type[e] == NodeType.GAUSSIAN:
                 self.gaussian_evidence.append(e)
-            elif evidence_type[e] == NodeType.CKDE:
+            elif evidence_type[e] == NodeType.SPBN:
                 self.kde_evidence.append(e)
                 self.kde_indices.append(idx+1)
 
@@ -415,7 +415,7 @@ class CKDE_CPD(BaseFactor):
             ev_type[e] = NodeType.GAUSSIAN
 
         for e in self.kde_evidence:
-            ev_type[e] = NodeType.CKDE
+            ev_type[e] = NodeType.SPBN
 
         copy_cpd = CKDE_CPD(self.variable, self.gaussian_cpds, df_kde, list(self.evidence), evidence_type=ev_type)
         return copy_cpd
@@ -457,6 +457,29 @@ class CKDE_CPD(BaseFactor):
                 sampled[i] = np.random.normal(conditional_mean, np.sqrt(conditional_var), size=1)
 
         return sampled
+
+    def sample_weights(self, parent_values):
+        jcov = self.joint_cov_matrix()
+        means = np.empty((self.n, len(self.evidence)))
+        means[:, :self.n_kde] = self.kde_instances[:,1:]
+        means[:,self.n_kde:] = self.means_gaussian(self.kde_instances)
+
+
+        weights = np.empty((self.n,))
+
+        marg_cov = jcov[1:, 1:]
+
+        if not self.evidence:
+
+            weights[:] = 1/self.n
+        else:
+            for i, (_, row) in enumerate(parent_values.iterrows()):
+                r = row.loc[self.kde_evidence + self.gaussian_evidence].to_numpy()
+                l = multivariate_normal.logpdf(means, r, marg_cov)
+
+                weights = np.exp(l - logsumexp(l))
+
+        return means, weights
 
     def sample_distribution(self, domain, parent_values):
         jcov = self.joint_cov_matrix()
