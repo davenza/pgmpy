@@ -270,9 +270,6 @@ class ConditionalKDE(BaseFactor):
         else:
             hat = self.joint_covariance[0, 1:].dot(np.linalg.inv(self.joint_covariance[1:, 1:]))
             cond_var = self.joint_covariance[0, 0] - hat.dot(self.joint_covariance[1:, 0])
-            print("Joint cov:")
-            print(self.joint_covariance)
-            print("cond_var: " + str(cond_var))
             for i, (_, row) in enumerate(parent_values.iterrows()):
                 lw = spstats.multivariate_normal(row.loc[self.evidence], self.joint_covariance[1:,1:]).logpdf(self._kde_joint_data[:,1:])
 
@@ -294,7 +291,8 @@ class ConditionalKDE(BaseFactor):
 
         del state['pro_que']
         del state['joint_kdedensity']
-        del state['marg_kdedensity']
+        if self.evidence:
+            del state['marg_kdedensity']
 
         return state
 
